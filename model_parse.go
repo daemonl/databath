@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/daemonl/go_lib/databath/types"
+	"github.com/daemonl/databath/types"
 	"io"
 	"log"
 	"os"

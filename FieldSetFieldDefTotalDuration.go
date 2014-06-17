@@ -2,7 +2,7 @@ package databath
 
 import (
 	"fmt"
-	"github.com/daemonl/go_lib/databath/types"
+	"github.com/daemonl/databath/types"
 	"log"
 	"strings"
 )

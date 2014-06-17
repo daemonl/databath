@@ -3,7 +3,7 @@ package databath
 import (
 	"database/sql"
 	"fmt"
-	"github.com/daemonl/go_lib/databath/types"
+	"github.com/daemonl/databath/types"
 	"log"
 	"strings"
 )

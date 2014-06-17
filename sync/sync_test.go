@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"github.com/daemonl/go_lib/databath"
+	"github.com/daemonl/databath"
 	_ "github.com/go-sql-driver/mysql"
 	"io"
 	"io/ioutil"
