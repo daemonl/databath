@@ -47,7 +47,7 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 	valString, ok := qc.Val.(string)
 	if ok && strings.HasPrefix(valString, "#") {
 		paramName := valString[1:]
-		qc.Val = q.context.getValueFor(paramName)
+		qc.Val = q.context.GetValueFor(paramName)
 	}
 	if qc.Cmp == "IN" {
 

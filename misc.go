@@ -35,8 +35,8 @@ func (mf *MappedField) CanSearch() bool {
 }
 
 type Context interface {
-	getValueFor(string) interface{}
-	getUserLevel() (isApplication bool, userAccessLevel uint64)
+	GetValueFor(string) interface{}
+	GetUserLevel() (isApplication bool, userAccessLevel uint64)
 }
 
 type MapContext struct {
@@ -45,11 +45,11 @@ type MapContext struct {
 	Fields          map[string]interface{}
 }
 
-func (mc *MapContext) getUserLevel() (bool, uint64) {
+func (mc *MapContext) GetUserLevel() (bool, uint64) {
 	return mc.IsApplication, mc.UserAccessLevel
 }
 
-func (mc *MapContext) getValueFor(key string) interface{} {
+func (mc *MapContext) GetValueFor(key string) interface{} {
 	val, ok := mc.Fields[key]
 	if !ok {
 		return key

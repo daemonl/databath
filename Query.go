@@ -36,7 +36,7 @@ func GetQuery(context Context, model *Model, conditions *QueryConditions, isWrit
 	}
 
 	if len(collection.Masks) > 0 {
-		isApplication, userLevel := context.getUserLevel()
+		isApplication, userLevel := context.GetUserLevel()
 		if !isApplication {
 			mask, ok := collection.Masks[userLevel]
 			if !ok {

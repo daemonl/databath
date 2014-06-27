@@ -2,7 +2,6 @@ package databath
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/daemonl/databath/types"
 	"io"
@@ -13,7 +12,7 @@ import (
 )
 
 func ParseErrF(format string, parameters ...interface{}) error {
-	return errors.New(fmt.Sprintf(format, parameters...))
+	return fmt.Errorf(format, parameters...)
 }
 
 type rawModel struct {
@@ -41,7 +40,7 @@ type rawSearchPrefix struct {
 }
 
 func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
-	log.Println("\n==========\nBegin Model Init\n==========")
+	log.Println("=== Model Init ===")
 
 	var model rawModel
 	decoder := json.NewDecoder(modelReader)
@@ -64,14 +63,14 @@ func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
 		for i, rawField := range rawQuery.InFields {
 			field, err := FieldFromDef(rawField)
 			if err != nil {
-				return nil, errors.New(fmt.Sprintf("Error parsing Raw Query %s.[in][%d] - %s", queryName, i, err.Error()))
+				return nil, (fmt.Errorf("Error parsing Raw Query %s.[in][%d] - %s", queryName, i, err.Error()))
 			}
 			cq.InFields[i] = field
 		}
 		for i, rawField := range rawQuery.OutFields {
 			field, err := FieldFromDef(rawField)
 			if err != nil {
-				return nil, errors.New(fmt.Sprintf("Error parsing Raw Query %s.[out][%d] - %s", queryName, i, err.Error()))
+				return nil, (fmt.Errorf("Error parsing Raw Query %s.[out][%d] - %s", queryName, i, err.Error()))
 			}
 			cq.OutFields[i] = field
 		}
@@ -88,7 +87,7 @@ func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
 			field, err := FieldFromDef(rawField)
 
 			if err != nil {
-				return nil, errors.New(fmt.Sprintf("Error parsing %s.%s - %s", collectionName, fieldName, err.Error()))
+				return nil, (fmt.Errorf("Error parsing %s.%s - %s", collectionName, fieldName, err.Error()))
 			}
 			field.Path = fieldName
 			fields[fieldName] = field
@@ -122,7 +121,7 @@ func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
 		if !hasIdentityFieldset {
 			_, exists := rawCollection.Fields["name"]
 			if !exists {
-				return nil, errors.New(fmt.Sprintf("%s: No identity fieldset or 'name' field to fall back on.", collectionName))
+				return nil, (fmt.Errorf("%s: No identity fieldset or 'name' field to fall back on.", collectionName))
 			}
 
 			rawCollection.FieldSets["identity"] = []string{"name"}
@@ -253,7 +252,7 @@ func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
 				field, err := FieldFromDef(rawField)
 				if err != nil {
 					log.Println(err)
-					return nil, errors.New(fmt.Sprintf("Error parsing hook ", err.Error()))
+					return nil, (fmt.Errorf("Error parsing hook ", err.Error()))
 				}
 				cq.InFields[i] = field
 			}
@@ -291,9 +290,13 @@ func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
 			}
 			collections[refField.Collection].ForeignKeys = append(collections[refField.Collection].ForeignKeys, field)
 		}
+
+		// Check all fieldsets...
+
+
 	}
 
-	log.Println("\n==========\nEnd Model Init\n==========")
+	log.Println("=== End Model Init ===")
 	return returnModel, err
 }
 
@@ -315,7 +318,7 @@ func getFieldParamString(rawField map[string]interface{}, paramName string) (*st
 	}
 	str, ok := val.(string)
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("param %s value must be a string", paramName))
+		return nil, (fmt.Errorf("param %s value must be a string", paramName))
 	}
 	return &str, nil
 }
@@ -327,7 +330,7 @@ func getFieldParamInt(rawField map[string]interface{}, paramName string) (*int64
 	}
 	intval, ok := val.(int64)
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("param %s value must be an integer", paramName))
+		return nil, (fmt.Errorf("param %s value must be an integer", paramName))
 	}
 	return &intval, nil
 }

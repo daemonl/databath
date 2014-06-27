@@ -47,7 +47,7 @@ func (f *Field) GetDefault(context Context) (string, error) {
 
 	strVal, isStr := (*f.OnCreate).(string)
 	if isStr && strings.HasPrefix(strVal, "#") {
-		val := context.getValueFor(strVal[1:])
+		val := context.GetValueFor(strVal[1:])
 		//fmt.Sprintf("##################%s  %s  %s\n\n\n", strVal, strVal[1:], val)
 		return f.Impl.ToDb(val)
 	}
