@@ -16,7 +16,7 @@ func (f *FieldString) GetMysqlDef() string {
 func (f *FieldString) IsSearchable() bool { return true }
 
 func (f *FieldString) Init(raw map[string]interface{}) error {
-	err := mapValueDefaultUInt64(raw, "length", 1000, &f.Length)
+	err := mapValueDefaultUInt64(raw, "length", 200, &f.Length)
 	if err != nil {
 		return err
 	}

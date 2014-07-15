@@ -17,7 +17,7 @@ func (f *FieldEnum) GetMysqlDef() string {
 func (f *FieldEnum) IsSearchable() bool { return true }
 
 func (f *FieldEnum) Init(raw map[string]interface{}) error {
-	err := mapValueDefaultUInt64(raw, "length", 1000, &f.Length)
+	err := mapValueDefaultUInt64(raw, "length", 3, &f.Length)
 	if err != nil {
 		return err
 	}

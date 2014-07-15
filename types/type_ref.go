@@ -26,12 +26,14 @@ func (f *FieldRef) Init(raw map[string]interface{}) error {
 	collectionString := collection.(string)
 	f.Collection = collectionString
 
-	onDelete, ok := raw["onDelete"]
+	onDelete, ok := raw["on_delete"]
 	if ok {
 		if onDelete == "CASCADE" {
 			f.OnDelete = RefOnDeleteCascade
 		} else if onDelete == "NULL" {
 			f.OnDelete = RefOnDeleteNull
+		} else{
+			f.OnDelete = RefOnDeletePrevent
 		}
 	} else {
 		f.OnDelete = RefOnDeletePrevent

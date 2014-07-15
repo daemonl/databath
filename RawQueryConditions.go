@@ -19,7 +19,7 @@ type RawQueryConditions struct {
 
 func (rawQuery *RawQueryConditions) TranslateToQuery() (*QueryConditions, error) {
 	if rawQuery.Collection == nil {
-		return nil, QueryUserError{"query must have a 'collection' key"}
+		return nil, UserErrorF("query must have a 'collection' key")
 	}
 
 	where := make([]QueryCondition, len(rawQuery.Where), len(rawQuery.Where))

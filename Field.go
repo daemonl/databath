@@ -34,8 +34,10 @@ func (f *Field) ToDb(raw interface{}, context Context) (string, error) {
 				raw = context.getValueFor(strVal)
 			}
 		}*/
+
 	return f.Impl.ToDb(raw)
 }
+
 func (f *Field) GetScanReciever() interface{} { return f.Impl.GetScanReciever() }
 func (f *Field) IsSearchable() bool           { return f.Impl.IsSearchable() }
 func (f *Field) GetMysqlDef() string          { return f.Impl.GetMysqlDef() }

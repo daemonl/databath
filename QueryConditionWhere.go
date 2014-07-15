@@ -23,7 +23,7 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 	field, ok := q.map_field[qc.Field]
 	if !ok {
 		q.Dump()
-		returnErr = QueryUserError{"Cannot query on non mapped field '" + qc.Field + "'."}
+		returnErr = UserErrorF("Cannot query on non mapped field '%s'.", qc.Field)
 		return //BAD
 	}
 
@@ -69,7 +69,7 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 
 		default:
 			fmt.Printf("TYPE for IN: %v\n", qc.Val)
-			returnErr = QueryUserError{"IN conditions require that val is an array"}
+			returnErr = UserErrorF("IN conditions require that val is an array")
 			return //BAD
 		}
 
@@ -96,7 +96,7 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 		queryString = fmt.Sprintf("%s %s", queryUsingName, qc.Cmp)
 		return //GOOD
 	} else {
-		returnErr = QueryUserError{"Compare method not allowed"}
+		returnErr = UserErrorF("Compare method not allowed")
 		return //BAD
 	}
 

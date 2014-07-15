@@ -30,7 +30,7 @@ func (c *Collection) GetFieldSet(fieldSetNamePointer *string) ([]FieldSetFieldDe
 
 	fields, ok := c.FieldSets[fieldSetName]
 	if !ok {
-		return nil, QueryUserError{"Fieldset " + fieldSetName + " doesn't exist in " + c.TableName}
+		return nil, UserErrorF("Fieldset %s doesn't exist in %s", fieldSetName, c.TableName)
 	}
 	log.Printf("Using fieldset: %s.%s\n", c.TableName, fieldSetName)
 

@@ -27,7 +27,7 @@ type Query struct {
 func GetQuery(context Context, model *Model, conditions *QueryConditions, isWrite bool) (*Query, error) {
 	collection, ok := model.Collections[conditions.collection]
 	if !ok {
-		return nil, QueryUserError{"No collection named " + conditions.collection}
+		return nil, UserErrorF("No collection named %s", conditions.collection)
 	}
 
 	fieldList, err := collection.GetFieldSet(conditions.fieldset)
@@ -40,7 +40,7 @@ func GetQuery(context Context, model *Model, conditions *QueryConditions, isWrit
 		if !isApplication {
 			mask, ok := collection.Masks[userLevel]
 			if !ok {
-				return nil, UserErrorF("User level %d does not have access to any fieldsets in %s", userLevel, collection.TableName)
+				return nil, UserAccessErrorF("User level %d does not have access to any fieldsets in %s", userLevel, collection.TableName)
 			}
 			var fieldsets []string
 			if isWrite {
@@ -66,7 +66,7 @@ func GetQuery(context Context, model *Model, conditions *QueryConditions, isWrit
 				if isWrite {
 					action = "write"
 				}
-				return nil, UserErrorF("User level %d does not have %s access to %s.[%s]", userLevel, action, collection.TableName, *conditions.fieldset)
+				return nil, UserAccessErrorF("User level %d does not have %s access to %s.[%s]", userLevel, action, collection.TableName, *conditions.fieldset)
 			}
 		}
 	}
@@ -402,7 +402,7 @@ func (q *Query) includeCollection(path string, collectionName string) (*MappedTa
 
 	collection, ok := q.model.Collections[collectionName]
 	if !ok {
-		return nil, QueryUserError{"Collection " + collectionName + " doesn't exist"}
+		return nil, UserErrorF("Collection %s doesn't exist", collectionName)
 	}
 
 	alreadyMapped, ok := q.map_table[path]
@@ -449,7 +449,7 @@ func (q *Query) includeField(fullName string, field *Field, fieldSetFieldDef Fie
 func (q *Query) leftJoin(baseTable *MappedTable, prefixPath []string, tableField string) (*MappedTable, error) {
 	fieldDef, fieldExists := baseTable.collection.Fields[tableField]
 	if !fieldExists {
-		return nil, QueryUserError{"Field " + tableField + " does not exist in " + baseTable.collection.TableName}
+		return nil, UserErrorF("Field %s does not exist in %s", tableField, baseTable.collection.TableName)
 	}
 	tableIncludePath := strings.Join(prefixPath, ".") + "." + tableField
 	refField := fieldDef.Impl.(*types.FieldRef)

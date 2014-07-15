@@ -38,11 +38,11 @@ func (f *FieldTimestamp) IsSearchable() bool { return false }
 
 func (f *FieldTimestamp) Init(raw map[string]interface{}) error {
 
-	_, t := raw["onCreate"]
+	_, t := raw["on_create"]
 	if t {
 		f.OnCreate = true
 	}
-	_, t = raw["onUpdate"]
+	_, t = raw["on_update"]
 	if t {
 		f.OnUpdate = true
 	}
