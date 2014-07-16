@@ -66,12 +66,14 @@ type FieldType interface {
 }
 
 func FieldByType(typeString string) (FieldType, error) {
+
+	typeString = strings.Replace(typeString, "_", "", -1)
+	typeString = strings.ToLower(typeString)
+
 	switch typeString {
 	case "string":
 		return &types.FieldString{}, nil
 	case "id":
-		return &types.FieldId{}, nil
-	case "ref_id":
 		return &types.FieldId{}, nil
 	case "ref":
 		return &types.FieldRef{}, nil
@@ -87,12 +89,6 @@ func FieldByType(typeString string) (FieldType, error) {
 		return &types.FieldBool{}, nil
 	case "text":
 		return &types.FieldText{}, nil
-	case "keyval":
-		return &types.FieldText{}, nil
-	case "object":
-		return &types.FieldText{}, nil
-	case "???":
-		return &types.FieldString{}, nil
 	case "address":
 		return &types.FieldText{}, nil
 	case "float":
@@ -103,10 +99,26 @@ func FieldByType(typeString string) (FieldType, error) {
 		return &types.FieldFile{}, nil
 	case "enum":
 		return &types.FieldEnum{}, nil
-	case "auto_timestamp":
+
+	case "autotimestamp":
 		return &types.FieldInt{}, nil
+
 	case "timestamp":
 		return &types.FieldTimestamp{}, nil
+	case "sqltimestamp":
+		return &types.FieldTimestamp{}, nil
+
+	case "???":
+		return &types.FieldString{}, nil
+
+	case "keyval":
+		return &types.FieldKeyVal{}, nil
+
+	case "blobject":
+		return &types.FieldBlobject{}, nil
+
+	case "refid":
+		return &types.FieldRefID{}, nil
 
 	default:
 		return nil, errors.New(fmt.Sprintf("Invalid Field Type '%s'", typeString))

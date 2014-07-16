@@ -182,9 +182,12 @@ RefId
 ????
 - type: ref_id
 
-Address
+Blobject
 -------
 TEXT NULL
 json object
 
-- type: address
+- type: blobject
+- subtype: (optional, string)
+  - address
+  - name
