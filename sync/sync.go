@@ -136,8 +136,6 @@ func MustExecF(now bool, db *sql.DB, format string, parameters ...interface{}) {
 		execString += fmt.Sprintf("%s;\n", q)
 
 	}
-
-	//log.Printf("RES: %d %d;", res.RowsAffected(), res.LastInsertId())
 }
 
 func SyncDb(db *sql.DB, model *databath.Model, now bool) {
@@ -159,13 +157,13 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) {
 
 	for collectionName, collection := range model.Collections {
 		log.Printf("COLLECTION: %s\n", collectionName)
+		if collectionName[0:1] == "_" {
+			log.Println("Skip super class table")
+			continue
+		}
 		res, err := db.Query(`SHOW TABLE STATUS WHERE Name = ?`, collectionName)
 		doErr(err)
 		if res.Next() {
-			log.Println("UPDATE TABLE")
-			// UPDATE!
-
-			log.Println("Get table info")
 			indexRes, err := db.Query(`
 SELECT
   c.CONSTRAINT_NAME,
@@ -191,13 +189,9 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 				indexes = append(indexes, &index)
 			}
 
-			log.Println("Scan Cols")
-
 			deferredStatements := []string{}
 
 			for colName, field := range collection.Fields {
-				log.Printf("Scan %s.%s\n", collectionName, colName)
-
 				showRes, err := db.Query(`SHOW COLUMNS FROM `+collectionName+` WHERE Field = ?`, colName)
 				doErr(err)
 				if showRes.Next() {
@@ -216,13 +210,24 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 				}
 				showRes.Close()
 
+				var linkToCollectionPtr *string
+
 				refField, ok := field.Impl.(*types.FieldRef)
 				if ok {
+					linkToCollectionPtr = &refField.Collection
+				} else {
+					refIdField, ok := field.Impl.(*types.FieldRefID)
+					if ok {
+						linkToCollectionPtr = &refIdField.Collection
+					}
+				}
+				if linkToCollectionPtr != nil {
+					linkToCollection := *linkToCollectionPtr
 					var matchedIndex *Index = nil
 					for _, index := range indexes {
 						// If Matches
 
-						if index.ReferencedTableName != nil && colName == *index.ColumnName && *index.ReferencedTableName == refField.Collection {
+						if index.ReferencedTableName != nil && colName == *index.ColumnName && *index.ReferencedTableName == linkToCollection {
 							matchedIndex = index
 							matchedIndex.Used = true
 							break
@@ -233,7 +238,7 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 					if matchedIndex == nil {
 						// Create It.
 						// Is it creatable with the current data?
-						badRowsRes, err := db.Query(fmt.Sprintf(`SELECT id, %s FROM %s WHERE %s IS NOT NULL AND %s NOT IN (SELECT %s FROM %s)`, colName, collectionName, colName, colName, "id", refField.Collection))
+						badRowsRes, err := db.Query(fmt.Sprintf(`SELECT id, %s FROM %s WHERE %s IS NOT NULL AND %s NOT IN (SELECT %s FROM %s)`, colName, collectionName, colName, colName, "id", linkToCollection))
 						if err != nil {
 							log.Printf("Error on FK check for %s.%s\n", collectionName, colName)
 
@@ -245,7 +250,7 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 								id := 0
 								fkVal := 0
 								badRowsRes.Scan(&id, &fkVal)
-								log.Printf("Foreign Key Test Fail: Entry %d for %s.%s references %s.id = %d, which doesn't exist\n", id, collectionName, colName, refField.Collection, fkVal)
+								log.Printf("Foreign Key Test Fail: Entry %d for %s.%s references %s.id = %d, which doesn't exist\n", id, collectionName, colName, linkToCollection, fkVal)
 							}
 							badRowsRes.Close()
 							if hasBad {
@@ -255,7 +260,7 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 							deferredStatements = append(deferredStatements, fmt.Sprintf(`ALTER TABLE %s 
 								ADD CONSTRAINT fk_%s_%s_%s_%s 
 								FOREIGN KEY (%s) 
-								REFERENCES %s(%s)`, collectionName, collectionName, colName, refField.Collection, "id", colName, refField.Collection, "id"))
+								REFERENCES %s(%s)`, collectionName, collectionName, colName, refField.Collection, "id", colName, linkToCollection, "id"))
 						}
 
 					}
@@ -273,7 +278,6 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 
 		} else {
 			// CREATE!
-			log.Println("CREATE TABLE")
 			params := make([]string, 0, 0)
 
 			for name, field := range collection.Fields {

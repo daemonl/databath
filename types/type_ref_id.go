@@ -2,13 +2,25 @@ package types
 
 import ()
 
-type FieldRefID struct{}
+type FieldRefID struct{
+Collection string
+}
 
-func (f *FieldRefID) GetMysqlDef() string { return "INT(11) UNSIGNED NOT NULL AUTO_INCREMENT" }
+func (f *FieldRefID) GetMysqlDef() string { return "INT(11) UNSIGNED NOT NULL" }
 
 func (f *FieldRefID) IsSearchable() bool { return false }
 
-func (f *FieldRefID) Init(raw map[string]interface{}) error { return nil }
+func (f *FieldRefID) Init(raw map[string]interface{}) error { 
+
+	collection, ok := raw["collection"]
+	if !ok{
+		return ModelDefinitionError{"RefID Field nas no key 'collection'", ""}
+	}
+	collectionString := collection.(string)
+	f.Collection = collectionString
+
+	return nil
+}
 
 func (f *FieldRefID) FromDb(stored interface{}) (interface{}, error) {
 	// uInt64 -> uInt64
