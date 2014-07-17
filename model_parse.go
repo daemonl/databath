@@ -82,6 +82,12 @@ func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
 	for collectionName, rawCollection := range model.Collections {
 		//log.Printf("Read Collection %s\n", collectionName)
 		fields := make(map[string]*Field)
+
+		_, ok := rawCollection.Fields["id"]
+		if !ok {
+			return nil, (fmt.Errorf("Error parsing collection %s, no id field", collectionName))
+		}
+
 		for fieldName, rawField := range rawCollection.Fields {
 
 			field, err := FieldFromDef(rawField)
