@@ -111,6 +111,9 @@ func FieldByType(typeString string) (FieldType, error) {
 	case "???":
 		return &types.FieldString{}, nil
 
+	case "bitswitch":
+		return &types.FieldString{}, nil
+
 	case "keyval":
 		return &types.FieldKeyVal{}, nil
 
