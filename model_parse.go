@@ -107,6 +107,10 @@ func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
 
 		fieldSets := make(map[string][]FieldSetFieldDef)
 
+		if rawCollection.FieldSets == nil {
+			rawCollection.FieldSets = make(map[string][]string)
+		}
+
 		_, hasDefaultFieldset := rawCollection.FieldSets["default"]
 		if !hasDefaultFieldset {
 			allFieldNames := make([]string, 0, 0)
@@ -292,7 +296,6 @@ func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
 		}
 
 		// Check all fieldsets...
-
 
 	}
 
