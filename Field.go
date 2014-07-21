@@ -83,6 +83,8 @@ func FieldByType(typeString string) (FieldType, error) {
 		return &types.FieldDateTime{}, nil
 	case "date":
 		return &types.FieldDate{}, nil
+	case "time":
+		return &types.FieldTime{}, nil
 	case "int":
 		return &types.FieldInt{}, nil
 	case "bool":
@@ -112,7 +114,7 @@ func FieldByType(typeString string) (FieldType, error) {
 		return &types.FieldString{}, nil
 
 	case "bitswitch":
-		return &types.FieldString{}, nil
+		return &types.FieldInt{}, nil
 
 	case "keyval":
 		return &types.FieldKeyVal{}, nil

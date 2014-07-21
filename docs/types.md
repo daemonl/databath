@@ -191,3 +191,11 @@ json object
 - subtype: (optional, string)
   - address
   - name
+
+Bitswitch
+---------
+INT(3)
+json array of keys
+
+- type: bitswitch
+- choices: (key, val object)

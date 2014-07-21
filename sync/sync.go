@@ -157,10 +157,10 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) {
 
 	for collectionName, collection := range model.Collections {
 		log.Printf("COLLECTION: %s\n", collectionName)
-		if collectionName[0:1] == "_" {
-			log.Println("Skip super class table")
-			continue
-		}
+		//if collectionName[0:1] == "_" {
+		//	log.Println("Skip super class table")
+		//	continue
+		//}
 		res, err := db.Query(`SHOW TABLE STATUS WHERE Name = ?`, collectionName)
 		doErr(err)
 		if res.Next() {
@@ -256,7 +256,6 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 							if hasBad {
 								panic("Foreign Key Failure, see above.")
 							}
-
 
 							deferredStatements = append(deferredStatements, fmt.Sprintf(`ALTER TABLE %s 
 								ADD CONSTRAINT fk_%s_%s_%s_%s 
