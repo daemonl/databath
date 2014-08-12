@@ -3,11 +3,14 @@ package sync
 import (
 	"database/sql"
 	"fmt"
-	"github.com/daemonl/databath"
-	"github.com/daemonl/databath/types"
 	"log"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/daemonl/databath"
+	"github.com/daemonl/databath/types"
 )
 
 func doErr(err error) {
@@ -65,6 +68,13 @@ func (e *SyncError) Error() string {
 }
 
 var execString string = ""
+var unused []string = []string{}
+
+var reMidWhitespace *regexp.Regexp = regexp.MustCompile(`[\n\t\ ]+`)
+var reLeadingWhitespace *regexp.Regexp = regexp.MustCompile(`^[\n\t\ ]+`)
+var reTrailingWhitespace *regexp.Regexp = regexp.MustCompile(`[\n\t\ ]+$`)
+
+var reCheckLength *regexp.Regexp = regexp.MustCompile(`^VARCHAR\(([0-9]+)\)`)
 
 func (c *Column) GetString() string {
 	built := c.Type
@@ -128,14 +138,20 @@ func ScanToStruct(res *sql.Rows, obj interface{}, tag string) error {
 
 func MustExecF(now bool, db *sql.DB, format string, parameters ...interface{}) {
 	q := fmt.Sprintf(format, parameters...)
-	log.Println("EXEC: " + q)
 	if now {
+		log.Println("EXEC: " + q)
 		_, err := db.Exec(q)
 		doErr(err)
 	} else {
+		q = reMidWhitespace.ReplaceAllString(q, " ")
+		q = reTrailingWhitespace.ReplaceAllString(q, "")
+		q = reLeadingWhitespace.ReplaceAllString(q, "")
 		execString += fmt.Sprintf("%s;\n", q)
-
 	}
+}
+
+func AddUnused(collection, column string) {
+	unused = append(unused, collection+"."+column)
 }
 
 func SyncDb(db *sql.DB, model *databath.Model, now bool) {
@@ -191,24 +207,68 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 
 			deferredStatements := []string{}
 
-			for colName, field := range collection.Fields {
-				showRes, err := db.Query(`SHOW COLUMNS FROM `+collectionName+` WHERE Field = ?`, colName)
+			allColumnsRes, err := db.Query(`SHOW COLUMNS FROM ` + collectionName)
+			doErr(err)
+			allColumns := map[string]Column{}
+			for allColumnsRes.Next() {
+				col := Column{}
+				err := ScanToStruct(allColumnsRes, &col, "sql")
 				doErr(err)
-				if showRes.Next() {
-					col := Column{}
-					err := ScanToStruct(showRes, &col, "sql")
-					doErr(err)
+				allColumns[col.Field] = col
+				has := false
+				for colName, _ := range collection.Fields {
+					if col.Field == colName {
+						has = true
+						break
+					}
+
+				}
+				if !has {
+					log.Printf("UNUSED COLUMN: %s.%s\n", collectionName, col.Field)
+					AddUnused(collectionName, col.Field)
+				}
+			}
+			allColumnsRes.Close()
+
+			for colName, field := range collection.Fields {
+				col, ok := allColumns[colName]
+				if ok {
 					colStr := col.GetString()
 					modelStr := field.GetMysqlDef()
 					if colStr != modelStr {
-						log.Printf("'%s' '%s'\n", colStr, modelStr)
+						log.Printf("CHANGE: '%s' '%s'\n", colStr, modelStr)
+
+						// If VARCHAR(100) etc
+						if reCheckLength.MatchString(modelStr) {
+							matches := reCheckLength.FindStringSubmatch(modelStr)
+							lenNewMax, _ := strconv.ParseUint(matches[1], 10, 64)
+							var lenExists uint64
+
+							lengthRes, err := db.Query(fmt.Sprintf(`SELECT MAX(LENGTH(%s)) FROM %s`, colName, collectionName))
+							if err != nil {
+								doErr(err)
+							} else {
+								lengthRes.Next()
+								err = lengthRes.Scan(&lenExists)
+								lengthRes.Close()
+								if err != nil {
+									doErr(err)
+								}
+								log.Printf("%s.%s max length: %d fits into %s\n",
+									collectionName, colName, lenExists, modelStr)
+								if lenExists > lenNewMax {
+									doErr(fmt.Errorf("%s.%s len = %d, larger than new def %s",
+										collectionName, colName, lenExists, modelStr))
+								}
+							}
+
+						}
 						MustExecF(now, db, "ALTER TABLE %s CHANGE COLUMN %s %s %s",
 							collectionName, colName, colName, modelStr)
 					}
 				} else {
 					MustExecF(now, db, "ALTER TABLE %s ADD `%s` %s", collectionName, colName, field.GetMysqlDef())
 				}
-				showRes.Close()
 
 				var linkToCollectionPtr *string
 
@@ -269,7 +329,7 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 			for _, index := range indexes {
 				if !index.Used && *index.ConstraintType == "FOREIGN KEY" {
 					MustExecF(now, db, `
-						ALTER TABLE %s DROP FOREIGN KEY %s`, collectionName, index.ConstraintName)
+					ALTER TABLE %s DROP FOREIGN KEY %s`, collectionName, index.ConstraintName)
 				}
 			}
 			for _, statement := range deferredStatements {
@@ -293,4 +353,5 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 
 	log.Println("==========")
 	log.Printf("\n\n%s\n\n", execString)
+	log.Printf("Unused: \n%s\n", strings.Join(unused, "\n"))
 }
