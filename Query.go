@@ -3,11 +3,12 @@ package databath
 import (
 	"database/sql"
 	"fmt"
-	"github.com/daemonl/databath/types"
 	"log"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/daemonl/databath/types"
 )
 
 type Query struct {
@@ -195,10 +196,14 @@ func (q *Query) BuildUpdate(changeset map[string]interface{}) (string, []interfa
 
 			return "", allParameters, UserErrorF("Attempt to update field not in fieldset: '%s'", path)
 		}
-
-		dbVal, err := field.field.ToDb(value, q.context)
-		if err != nil {
-			return "", allParameters, UserErrorF("Error converting %s to database value: %s", path, err.Error())
+		var dbVal interface{}
+		if value == nil {
+			dbVal = nil
+		} else {
+			dbVal, err = field.field.ToDb(value, q.context)
+			if err != nil {
+				return "", allParameters, UserErrorF("Error converting %s to database value: %s", path, err.Error())
+			}
 		}
 		updateString := fmt.Sprintf("`%s`.`%s` = ?", field.table.alias, field.fieldNameInTable)
 
