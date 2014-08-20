@@ -242,7 +242,7 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 						if reCheckLength.MatchString(modelStr) {
 							matches := reCheckLength.FindStringSubmatch(modelStr)
 							lenNewMax, _ := strconv.ParseUint(matches[1], 10, 64)
-							var lenExists uint64
+							var lenExists *uint64
 
 							lengthRes, err := db.Query(fmt.Sprintf(`SELECT MAX(LENGTH(%s)) FROM %s`, colName, collectionName))
 							if err != nil {
@@ -254,11 +254,13 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 								if err != nil {
 									doErr(err)
 								}
-								log.Printf("%s.%s max length: %d fits into %s\n",
-									collectionName, colName, lenExists, modelStr)
-								if lenExists > lenNewMax {
-									doErr(fmt.Errorf("%s.%s len = %d, larger than new def %s",
-										collectionName, colName, lenExists, modelStr))
+								if lenExists != nil {
+									log.Printf("%s.%s max length: %d fits into %s\n",
+										collectionName, colName, *lenExists, modelStr)
+									if *lenExists > lenNewMax {
+										doErr(fmt.Errorf("%s.%s len = %d, larger than new def %s",
+											collectionName, colName, *lenExists, modelStr))
+									}
 								}
 							}
 
