@@ -92,6 +92,19 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 		parameters = append(parameters, dbVal)
 		queryString = fmt.Sprintf("%s LIKE ?", queryUsingName)
 		return //GOOD
+	} else if qc.Cmp == "INJSON" {
+		dbVal, err := field.field.ToDb(qc.Val, q.context)
+		if err != nil {
+			returnErr = err
+			return //BAD
+		}
+		//This regexp returns all rows with values including a word starting with "dbVal".
+		// NB: The mysql regexp implementation is weird - \b is replaced with [[:<:]], and
+		//     lookahead/lookbehind aren't supported.
+		dbVal = "[[:<:]]" + dbVal + "[^\"]*((\",)|(\"\\}))"
+		parameters = append(parameters, dbVal)
+		queryString = fmt.Sprintf("%s REGEXP ?", queryUsingName)
+		return //GOOD
 	} else if qc.Cmp == "IS NULL" || qc.Cmp == "IS NOT NULL" {
 		queryString = fmt.Sprintf("%s %s", queryUsingName, qc.Cmp)
 		return //GOOD
