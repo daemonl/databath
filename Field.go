@@ -17,7 +17,7 @@ type Field struct {
 
 func (f *Field) Init(raw map[string]interface{}) error {
 	f.Raw = raw
-	onCreate, ok := raw["onCreate"]
+	onCreate, ok := raw["on_create"]
 	if ok {
 		f.OnCreate = &onCreate
 	}

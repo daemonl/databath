@@ -3,11 +3,12 @@ package databath
 import (
 	"database/sql"
 	"fmt"
-	"github.com/daemonl/databath/types"
 	"log"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/daemonl/databath/types"
 )
 
 type Query struct {
@@ -195,10 +196,14 @@ func (q *Query) BuildUpdate(changeset map[string]interface{}) (string, []interfa
 
 			return "", allParameters, UserErrorF("Attempt to update field not in fieldset: '%s'", path)
 		}
-
-		dbVal, err := field.field.ToDb(value, q.context)
-		if err != nil {
-			return "", allParameters, UserErrorF("Error converting %s to database value: %s", path, err.Error())
+		var dbVal interface{}
+		if value == nil {
+			dbVal = nil
+		} else {
+			dbVal, err = field.field.ToDb(value, q.context)
+			if err != nil {
+				return "", allParameters, UserErrorF("Error converting %s to database value: %s", path, err.Error())
+			}
 		}
 		updateString := fmt.Sprintf("`%s`.`%s` = ?", field.table.alias, field.fieldNameInTable)
 
@@ -211,16 +216,14 @@ func (q *Query) BuildUpdate(changeset map[string]interface{}) (string, []interfa
 	}
 	limit := "LIMIT 1"
 	joins := ""
-	if q.conditions.limit != nil {
-		if *q.conditions.limit > 0 {
-			limit = fmt.Sprintf("LIMIT %d", *q.conditions.limit)
-		} else {
-			// This allows a '-1' to 'unlimit' the update
-			limit = ""
-			joins = strings.Join(q.joins, "\n  ")
-			// That is: Joins only work without a limit, and the scenarios always line up... hopefully
-		}
-
+	if q.conditions.limit != nil && *q.conditions.limit > 0 {
+		limit = fmt.Sprintf("LIMIT %d", *q.conditions.limit)
+		log.Printf("SET LIMIT %d\n", *q.conditions.limit)
+	} else {
+		// This allows a '-1' to 'unlimit' the update
+		limit = ""
+		joins = strings.Join(q.joins, "\n  ")
+		// That is: Joins only work without a limit, and the scenarios always line up... hopefully
 	}
 
 	sql := fmt.Sprintf(`UPDATE %s %s %s SET %s %s %s`,
@@ -616,14 +619,17 @@ func (q *Query) makeWhereString(conditions *QueryConditions) (whereString string
 					}
 				}
 			} else {
-				partGroup := make([]QueryCondition, len(parts), len(parts))
-				for i, p := range parts {
-					qc := QueryConditionWhere{
-						Field: field,
-						Cmp:   "LIKE",
-						Val:   p,
+				fieldNames := strings.Split(field, ",")
+				partGroup := make([]QueryCondition, 0, len(parts)*len(fieldNames))
+				for _, p := range parts {
+					for _, field := range fieldNames {
+						qc := QueryConditionWhere{
+							Field: strings.TrimSpace(field),
+							Cmp:   "LIKE",
+							Val:   p,
+						}
+						partGroup = append(partGroup, &qc)
 					}
-					partGroup[i] = &qc
 				}
 				joined, joinedParameters, _, _, err := q.JoinConditionsWith(partGroup, " OR ")
 				if err != nil {

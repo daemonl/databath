@@ -3,12 +3,13 @@ package databath
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/daemonl/databath/types"
 	"io"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/daemonl/databath/types"
 )
 
 func ParseErrF(format string, parameters ...interface{}) error {
@@ -39,7 +40,7 @@ type rawSearchPrefix struct {
 	Field string `json:"field"`
 }
 
-func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
+func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, error) {
 	log.Println("=== Model Init ===")
 
 	var model rawModel
@@ -112,59 +113,61 @@ func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
 		}
 
 		fieldSets := make(map[string][]FieldSetFieldDef)
+		if doFieldSets {
 
-		if rawCollection.FieldSets == nil {
-			rawCollection.FieldSets = make(map[string][]string)
-		}
-
-		_, hasDefaultFieldset := rawCollection.FieldSets["default"]
-		if !hasDefaultFieldset {
-			allFieldNames := make([]string, 0, 0)
-			for fieldName, _ := range rawCollection.Fields {
-				allFieldNames = append(allFieldNames, fieldName)
-			}
-			rawCollection.FieldSets["default"] = allFieldNames
-
-		}
-
-		_, hasIdentityFieldset := rawCollection.FieldSets["identity"]
-		if !hasIdentityFieldset {
-			_, exists := rawCollection.Fields["name"]
-			if !exists {
-				return nil, (fmt.Errorf("%s: No identity fieldset or 'name' field to fall back on.", collectionName))
+			if rawCollection.FieldSets == nil {
+				rawCollection.FieldSets = make(map[string][]string)
 			}
 
-			rawCollection.FieldSets["identity"] = []string{"name"}
-		}
-
-		for name, rawSet := range rawCollection.FieldSets {
-			//log.Printf("Evaluate Fieldset: %s", name)
-			rawSet = append(rawSet, "id")
-
-			fieldSetDefs := make([]FieldSetFieldDef, len(rawSet), len(rawSet))
-			for i, fieldName := range rawSet {
-				if fieldName[0:1] == "-" {
-					fieldName = fieldName[1:]
+			_, hasDefaultFieldset := rawCollection.FieldSets["default"]
+			if !hasDefaultFieldset {
+				allFieldNames := make([]string, 0, 0)
+				for fieldName, _ := range rawCollection.Fields {
+					allFieldNames = append(allFieldNames, fieldName)
 				}
-
-				fieldName = strings.Split(fieldName, " ")[0]
-
-				customField, ok := customFields[fieldName]
-				if ok {
-					fieldSetDefs[i] = customField
-					continue
-				}
-
-				fsfd := FieldSetFieldDefNormal{
-					path:      fieldName,
-					pathSplit: strings.Split(fieldName, "."),
-				}
-				fieldSetDefs[i] = &fsfd
-
-				//return nil, UserErrorF("No field or custom field for %s in %s", fieldName, collectionName)
+				rawCollection.FieldSets["default"] = allFieldNames
 
 			}
-			fieldSets[name] = fieldSetDefs
+
+			_, hasIdentityFieldset := rawCollection.FieldSets["identity"]
+			if !hasIdentityFieldset {
+				_, exists := rawCollection.Fields["name"]
+				if !exists {
+					return nil, (fmt.Errorf("%s: No identity fieldset or 'name' field to fall back on.", collectionName))
+				}
+
+				rawCollection.FieldSets["identity"] = []string{"name"}
+			}
+
+			for name, rawSet := range rawCollection.FieldSets {
+				//log.Printf("Evaluate Fieldset: %s", name)
+				rawSet = append(rawSet, "id")
+
+				fieldSetDefs := make([]FieldSetFieldDef, len(rawSet), len(rawSet))
+				for i, fieldName := range rawSet {
+					if fieldName[0:1] == "-" {
+						fieldName = fieldName[1:]
+					}
+
+					fieldName = strings.Split(fieldName, " ")[0]
+
+					customField, ok := customFields[fieldName]
+					if ok {
+						fieldSetDefs[i] = customField
+						continue
+					}
+
+					fsfd := FieldSetFieldDefNormal{
+						path:      fieldName,
+						pathSplit: strings.Split(fieldName, "."),
+					}
+					fieldSetDefs[i] = &fsfd
+
+					//return nil, UserErrorF("No field or custom field for %s in %s", fieldName, collectionName)
+
+				}
+				fieldSets[name] = fieldSetDefs
+			}
 		}
 
 		searchPrefixes := make(map[string]*SearchPrefix)
@@ -309,13 +312,24 @@ func ReadModelFromReader(modelReader io.ReadCloser) (*Model, error) {
 	return returnModel, err
 }
 
+func ReadModelFromFileForSync(filename string) (*Model, error) {
+
+	modelFile, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	m, err := ReadModelFromReader(modelFile, false)
+	modelFile.Close()
+	return m, err
+}
 func ReadModelFromFile(filename string) (*Model, error) {
 	modelFile, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	m, err := ReadModelFromReader(modelFile)
+	m, err := ReadModelFromReader(modelFile, true)
 	modelFile.Close()
 	return m, err
 }
