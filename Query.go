@@ -563,7 +563,6 @@ func (q *Query) makeWhereString(conditions *QueryConditions) (whereString string
 						Val:   id,
 					}
 					conditions.where = append(conditions.where, &filterCondition)
-
 				} else {
 					var usePrefixSearch bool
 					for pString, searchPrefix := range q.collection.SearchPrefixes {
@@ -585,23 +584,26 @@ func (q *Query) makeWhereString(conditions *QueryConditions) (whereString string
 
 					if !usePrefixSearch {
 
-						allTextFields := make([]string, 0, 0)
-						for path, mappedField := range q.map_field {
-							if mappedField.CanSearch() {
-								allTextFields = append(allTextFields, path)
-							}
-						}
-
 						for _, part := range parts {
-							partVal := "%" + part + "%"
-							partGroup := make([]QueryCondition, len(allTextFields), len(allTextFields))
-							for i, fieldName := range allTextFields {
-								condition := QueryConditionWhere{
-									Field: fieldName,
-									Cmp:   "LIKE",
-									Val:   partVal,
+							partGroup := make([]QueryCondition, 0, 0)
+							for path, mappedField := range q.map_field {
+								if mappedField.CanSearch() {
+									if _, ok := mappedField.field.Impl.(*types.FieldBlobject) ; ok {
+										condition := QueryConditionWhere{
+											Field: path,
+											Cmp:   "INJSON",
+											Val:   part,
+										}
+										partGroup = append(partGroup, &condition)
+									} else {
+										condition := QueryConditionWhere{
+											Field: path,
+											Cmp:   "LIKE",
+											Val:   "%" + part + "%",
+										}
+										partGroup = append(partGroup, &condition)
+									}
 								}
-								partGroup[i] = &condition
 							}
 							j1, jp1, _, _, err := q.JoinConditionsWith(partGroup, " OR ")
 							if err != nil {
@@ -611,9 +613,7 @@ func (q *Query) makeWhereString(conditions *QueryConditions) (whereString string
 							strCondition := QueryConditionString{Str: j1, Parameters: jp1}
 							conditions.where = append(conditions.where, &strCondition)
 						}
-
 					}
-
 				}
 			} else {
 				partGroup := make([]QueryCondition, len(parts), len(parts))
