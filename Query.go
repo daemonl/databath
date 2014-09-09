@@ -540,13 +540,36 @@ func (q *Query) makeWhereString(conditions *QueryConditions) (whereString string
 	}
 
 	if conditions.filter != nil {
+
 		for fieldName, value := range *conditions.filter {
-			filterCondition := QueryConditionWhere{
+			fieldNames := strings.Split(fieldName, ",")
+				qcArray := []QueryCondition{}
+				for _, field := range fieldNames {
+					qc := &QueryConditionWhere{
+						Field: strings.TrimSpace(field),
+						Cmp:   "=",
+						Val:   value,
+					}
+					qcArray = append(qcArray, qc)
+				}
+				joined, joinedParameters, _, _, err := q.JoinConditionsWith(qcArray, " OR ")
+				if err != nil {
+					returnErr = err
+					return //BAD
+				}
+				if len(joined) > 0 {
+					strCondition := QueryConditionString{Str: joined, Parameters: joinedParameters}
+					conditions.where = append(conditions.where, &strCondition)
+				}
+
+
+
+			/*filterCondition := QueryConditionWhere{
 				Field: fieldName,
 				Cmp:   "=",
 				Val:   value,
 			}
-			conditions.where = append(conditions.where, &filterCondition)
+			conditions.where = append(conditions.where, &filterCondition)*/
 		}
 
 	}
