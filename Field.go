@@ -3,8 +3,9 @@ package databath
 import (
 	"errors"
 	"fmt"
-	"github.com/daemonl/databath/types"
 	"strings"
+
+	"github.com/daemonl/databath/types"
 )
 
 type Field struct {
@@ -86,6 +87,8 @@ func FieldByType(typeString string) (FieldType, error) {
 	case "time":
 		return &types.FieldTime{}, nil
 	case "int":
+		return &types.FieldInt{}, nil
+	case "range":
 		return &types.FieldInt{}, nil
 	case "bool":
 		return &types.FieldBool{}, nil
