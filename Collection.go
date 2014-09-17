@@ -3,9 +3,10 @@ package databath
 import (
 	"database/sql"
 	"fmt"
-	"github.com/daemonl/databath/types"
 	"log"
 	"strings"
+
+	"github.com/daemonl/databath/types"
 )
 
 type Collection struct {
@@ -18,6 +19,7 @@ type Collection struct {
 	Hooks          []Hook
 	TableName      string
 	SearchPrefixes map[string]*SearchPrefix
+	ViewQuery      *string
 }
 
 func (c *Collection) GetFieldSet(fieldSetNamePointer *string) ([]FieldSetFieldDef, error) {

@@ -29,6 +29,7 @@ type rawCollection struct {
 	CustomFields   map[string]interface{}              `json:"custom"`
 	SearchPrefixes map[string]*rawSearchPrefix         `json:"searchPrefixes"`
 	Masks          map[string]map[string][]interface{} `json:"masks"`
+	ViewQuery      *string                             `json:"viewQuery,omitempty"`
 }
 type rawCustomQuery struct {
 	Query     string                            `json:"query"`
@@ -246,7 +247,9 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 			CustomFields:   customFields,
 			SearchPrefixes: searchPrefixes,
 			Masks:          masks,
+			ViewQuery:      rawCollection.ViewQuery,
 		}
+
 		collections[collectionName] = &collection
 	}
 

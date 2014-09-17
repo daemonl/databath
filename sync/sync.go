@@ -177,6 +177,11 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) {
 		//	log.Println("Skip super class table")
 		//	continue
 		//}
+
+		if collection.ViewQuery != nil {
+			log.Println("SKIP COLLECTION - It has a view query")
+			continue
+		}
 		res, err := db.Query(`SHOW TABLE STATUS WHERE Name = ?`, collectionName)
 		doErr(err)
 		if res.Next() {
