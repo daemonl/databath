@@ -324,10 +324,13 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 								panic("Foreign Key Failure, see above.")
 							}
 
-							deferredStatements = append(deferredStatements, fmt.Sprintf(`ALTER TABLE %s 
+							if model.Collections[linkToCollection].ViewQuery == nil {
+
+								deferredStatements = append(deferredStatements, fmt.Sprintf(`ALTER TABLE %s 
 								ADD CONSTRAINT fk_%s_%s_%s_%s 
 								FOREIGN KEY (%s) 
 								REFERENCES %s(%s)`, collectionName, collectionName, colName, linkToCollection, "id", colName, linkToCollection, "id"))
+							}
 						}
 
 					}
