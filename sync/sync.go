@@ -171,15 +171,12 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) {
 	}
 	res.Close()
 
+	// Create and sync all of the collections
 	for collectionName, collection := range model.Collections {
 		log.Printf("COLLECTION: %s\n", collectionName)
-		//if collectionName[0:1] == "_" {
-		//	log.Println("Skip super class table")
-		//	continue
-		//}
-
 		if collection.ViewQuery != nil {
 			log.Println("SKIP COLLECTION - It has a view query")
+			//TODO: Implement view queries.
 			continue
 		}
 		res, err := db.Query(`SHOW TABLE STATUS WHERE Name = ?`, collectionName)
@@ -211,6 +208,8 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 			}
 
 			deferredStatements := []string{}
+
+			// Create and sync all of the columns.
 
 			allColumnsRes, err := db.Query(`SHOW COLUMNS FROM ` + collectionName)
 			doErr(err)
@@ -327,9 +326,9 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 							if model.Collections[linkToCollection].ViewQuery == nil {
 
 								deferredStatements = append(deferredStatements, fmt.Sprintf(`ALTER TABLE %s 
-								ADD CONSTRAINT fk_%s_%s_%s_%s 
+								ADD CONSTRAINT fk_%s_%s 
 								FOREIGN KEY (%s) 
-								REFERENCES %s(%s)`, collectionName, collectionName, colName, linkToCollection, "id", colName, linkToCollection, "id"))
+								REFERENCES %s(%s)`, collectionName, collectionName, colName, colName, linkToCollection, "id"))
 							}
 						}
 
