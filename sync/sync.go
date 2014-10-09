@@ -13,12 +13,6 @@ import (
 	"github.com/daemonl/databath/types"
 )
 
-func doErr(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
 type TableStatus struct {
 	Name            string  `sql:"Name"`
 	Engine          string  `sql:"Engine"`
@@ -98,7 +92,7 @@ func ScanToStruct(res *sql.Rows, obj interface{}, tag string) error {
 	rt := reflect.TypeOf(obj)
 
 	if reflect.Indirect(rv).Kind().String() != "struct" {
-		panic("KIND NOT STRUCT" + rv.Kind().String())
+		return fmt.Errorf("KIND NOT STRUCT" + rv.Kind().String())
 	}
 
 	valueElm := rv.Elem()
@@ -141,7 +135,9 @@ func MustExecF(now bool, db *sql.DB, format string, parameters ...interface{}) {
 	if now {
 		log.Println("EXEC: " + q)
 		_, err := db.Exec(q)
-		doErr(err)
+		if err != nil {
+			panic(err)
+		}
 	} else {
 		q = reMidWhitespace.ReplaceAllString(q, " ")
 		q = reTrailingWhitespace.ReplaceAllString(q, "")
@@ -151,22 +147,24 @@ func MustExecF(now bool, db *sql.DB, format string, parameters ...interface{}) {
 }
 
 func AddUnused(collection, column string) {
-	unused = append(unused, collection+"."+column)
+	unused = append(unused, fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s;", collection, column))
 }
 
-func SyncDb(db *sql.DB, model *databath.Model, now bool) {
+func SyncDb(db *sql.DB, model *databath.Model, now bool) error {
 
-	// CREATE DATABASE IF NOT EXISTS #{config.db.database}
-	// USE #{config.db.database}
-	// Probably won't work - the connection is set to a database.
+	// Fix any non InnoDB tables
 
 	res, err := db.Query(`SHOW TABLE STATUS WHERE Engine != 'InnoDB'`)
-	doErr(err)
+	if err != nil {
+		return err
+	}
 
 	for res.Next() {
 		table := TableStatus{}
 		err := ScanToStruct(res, &table, "sql")
-		doErr(err)
+		if err != nil {
+			return err
+		}
 		MustExecF(now, db, "ALTER TABLE %s ENGINE = 'InnoDB'", table.Name)
 	}
 	res.Close()
@@ -174,13 +172,20 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) {
 	// Create and sync all of the collections
 	for collectionName, collection := range model.Collections {
 		log.Printf("COLLECTION: %s\n", collectionName)
+
 		if collection.ViewQuery != nil {
+			//TODO: Destroy any foreign keys.
+			MustExecF(now, db, "DROP TABLE IF EXISTS %s", collectionName)
+			MustExecF(now, db, "CREATE OR REPLACE VIEW %s AS %s", collectionName, *collection.ViewQuery)
 			log.Println("SKIP COLLECTION - It has a view query")
-			//TODO: Implement view queries.
 			continue
 		}
+
 		res, err := db.Query(`SHOW TABLE STATUS WHERE Name = ?`, collectionName)
-		doErr(err)
+		if err != nil {
+			return err
+		}
+		//TODO: Cache the res, don't keep it open
 		if res.Next() {
 			indexRes, err := db.Query(`
 SELECT
@@ -198,12 +203,16 @@ LEFT JOIN information_schema.KEY_COLUMN_USAGE k
 WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 `)
 
-			doErr(err)
+			if err != nil {
+				return err
+			}
 			indexes := []*Index{}
 			for indexRes.Next() {
 				index := Index{}
 				err := ScanToStruct(indexRes, &index, "sql")
-				doErr(err)
+				if err != nil {
+					return err
+				}
 				indexes = append(indexes, &index)
 			}
 
@@ -212,12 +221,16 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 			// Create and sync all of the columns.
 
 			allColumnsRes, err := db.Query(`SHOW COLUMNS FROM ` + collectionName)
-			doErr(err)
+			if err != nil {
+				return err
+			}
 			allColumns := map[string]Column{}
 			for allColumnsRes.Next() {
 				col := Column{}
 				err := ScanToStruct(allColumnsRes, &col, "sql")
-				doErr(err)
+				if err != nil {
+					return err
+				}
 				allColumns[col.Field] = col
 				has := false
 				for colName, _ := range collection.Fields {
@@ -250,20 +263,20 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 
 							lengthRes, err := db.Query(fmt.Sprintf(`SELECT MAX(LENGTH(%s)) FROM %s`, colName, collectionName))
 							if err != nil {
-								doErr(err)
+								return err
 							} else {
 								lengthRes.Next()
 								err = lengthRes.Scan(&lenExists)
 								lengthRes.Close()
 								if err != nil {
-									doErr(err)
+									return err
 								}
 								if lenExists != nil {
 									log.Printf("%s.%s max length: %d fits into %s\n",
 										collectionName, colName, *lenExists, modelStr)
 									if *lenExists > lenNewMax {
-										doErr(fmt.Errorf("%s.%s len = %d, larger than new def %s",
-											collectionName, colName, *lenExists, modelStr))
+										return fmt.Errorf("%s.%s len = %d, larger than new def %s",
+											collectionName, colName, *lenExists, modelStr)
 									}
 								}
 							}
@@ -320,15 +333,15 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 							}
 							badRowsRes.Close()
 							if hasBad {
-								panic("Foreign Key Failure, see above.")
+								return fmt.Errorf("Foreign Key Failure, check logs.")
 							}
 
 							if model.Collections[linkToCollection].ViewQuery == nil {
 
 								deferredStatements = append(deferredStatements, fmt.Sprintf(`ALTER TABLE %s 
-								ADD CONSTRAINT fk_%s_%s 
+								ADD CONSTRAINT fk_%s_%s_%s_%s 
 								FOREIGN KEY (%s) 
-								REFERENCES %s(%s)`, collectionName, collectionName, colName, colName, linkToCollection, "id"))
+								REFERENCES %s(%s)`, collectionName, collectionName, colName, linkToCollection, "id", colName, linkToCollection, "id"))
 							}
 						}
 
@@ -363,4 +376,5 @@ WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
 	log.Println("==========")
 	log.Printf("\n\n%s\n\n", execString)
 	log.Printf("Unused: \n%s\n", strings.Join(unused, "\n"))
+	return nil
 }
