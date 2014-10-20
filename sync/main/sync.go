@@ -98,7 +98,7 @@ func SetUser(db *sql.DB, table string, username string, password string) error {
 		}
 
 	} else {
-		_, err := db.Exec(`INSERT INTO `+table+` (username, password, set_on_next_login) VALUES (?, ?, 0)`, username, hashedPassword)
+		_, err := db.Exec(`INSERT INTO `+table+` (username, password, set_on_next_login, access) VALUES (?, ?, 0, 0)`, username, hashedPassword)
 
 		if err != nil {
 			return err
