@@ -540,7 +540,6 @@ func (q *Query) makeWhereString(conditions *QueryConditions) (whereString string
 	}
 
 	if conditions.filter != nil {
-
 		for fieldName, value := range *conditions.filter {
 			fieldNames := strings.Split(fieldName, ",")
 				qcArray := []QueryCondition{}
@@ -609,7 +608,6 @@ func (q *Query) makeWhereString(conditions *QueryConditions) (whereString string
 					}
 
 					if !usePrefixSearch {
-
 						for _, part := range parts {
 							partGroup := make([]QueryCondition, 0, 0)
 							for path, mappedField := range q.map_field {
@@ -629,6 +627,8 @@ func (q *Query) makeWhereString(conditions *QueryConditions) (whereString string
 										}
 										partGroup = append(partGroup, &condition)
 									}
+								} else{
+									log.Println("can't search mapped field") //should be error
 								}
 							}
 							j1, jp1, _, _, err := q.JoinConditionsWith(partGroup, " OR ")
