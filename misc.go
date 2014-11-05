@@ -3,6 +3,8 @@ package databath
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/daemonl/databath/types"
 )
 
 type DynamicFunction struct {
@@ -34,6 +36,29 @@ func (mf *MappedField) CanSearch() bool {
 		return false
 	}
 	return mf.AllowSearch
+}
+
+func (mf *MappedField) ConstructQuery(term string) *QueryConditionWhere {
+	if mf.CanSearch() {
+		if _, ok := mf.field.Impl.(*types.FieldBlobject); ok {
+			condition := QueryConditionWhere{
+				Field: mf.path,
+				Cmp:   "INJSON",
+				Val:   term,
+			}
+			return &condition
+		} else {
+			condition := QueryConditionWhere{
+				Field: mf.path,
+				Cmp:   "LIKE",
+				Val:   term,
+			}
+			return &condition
+		}
+	} else {
+		fmt.Printf("Can't search mapped field %s", mf.path)
+		return nil
+	}
 }
 
 type Context interface {
