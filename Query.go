@@ -576,6 +576,7 @@ func (q *Query) makeWhereString(conditions *QueryConditions) (whereString string
 		for field, term := range conditions.search {
 
 			parts := re_notAlphaNumeric.Split(strings.TrimSpace(term), -1)
+			blobjectPairings := re_blobjectNotAlphaNumeric.Split(strings.TrimSpace(term), -1)
 
 			if field == "*" {
 				if re_numeric.MatchString(term) {
@@ -627,16 +628,18 @@ func (q *Query) makeWhereString(conditions *QueryConditions) (whereString string
 			} else {
 				fieldNames := strings.Split(field, ",")
 				partGroup := make([]QueryCondition, 0, len(parts)*len(fieldNames))
-				for _, p := range parts {
-					for _, field := range fieldNames {
-						mappedField, err := q.getMappedFieldByFieldName(field)
-						if err != nil {
-							returnErr = err
-							return //BAD
-						}
-						qc := mappedField.ConstructQuery(p)
-						if qc != nil {
-							partGroup = append(partGroup, qc)
+				for _, p := range blobjectPairings {
+					if p != "" {
+						for _, field := range fieldNames {
+							mappedField, err := q.getMappedFieldByFieldName(field)
+							if err != nil {
+								returnErr = err
+								return //BAD
+							}
+							qc := mappedField.ConstructQuery(p)
+							if qc != nil {
+								partGroup = append(partGroup, qc)
+							}
 						}
 					}
 				}
