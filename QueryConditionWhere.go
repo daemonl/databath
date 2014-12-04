@@ -95,8 +95,6 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 	} else if qc.Cmp == "INJSON" {
 		dbVal, err := field.field.ToDb(qc.Val, q.context)
 		blobjectPairing := strings.Split(dbVal, ":")
-		fmt.Println("-------------------------------")
-		fmt.Println(blobjectPairing)
 		if err != nil {
 			returnErr = err
 			return //BAD
@@ -104,8 +102,6 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 		//This regexp returns all rows with values including a word starting with "dbVal".
 		// NB: The mysql regexp implementation is weird - \b is replaced with [[:<:]], and
 		//     lookahead/lookbehind aren't supported.
-		fmt.Printf("length %v\n", len(blobjectPairing))
-		fmt.Printf("pairing %v\n", blobjectPairing)
 		if len(blobjectPairing) == 2 {
 			parameter := blobjectPairing[0] + "\":\"" + blobjectPairing[1] + "[^\"]*((\",)|(\"\\}))"
 			parameters = append(parameters, parameter)
