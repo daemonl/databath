@@ -579,50 +579,40 @@ func (q *Query) makeWhereString(conditions *QueryConditions) (whereString string
 			blobjectPairings := re_blobjectNotAlphaNumeric.Split(strings.TrimSpace(term), -1)
 
 			if field == "*" {
-				if re_numeric.MatchString(term) {
-					id, _ := strconv.ParseUint(term, 10, 32)
-					filterCondition := QueryConditionWhere{
-						Field: "id",
-						Cmp:   "=",
-						Val:   id,
-					}
-					conditions.where = append(conditions.where, &filterCondition)
-				} else {
-					var usePrefixSearch bool
-					for pString, searchPrefix := range q.collection.SearchPrefixes {
-						if strings.HasPrefix(term, pString) {
-							termWithoutPrefix := term[len(pString):]
-							if re_numeric.MatchString(termWithoutPrefix) {
-								usePrefixSearch = true
-								number, _ := strconv.ParseUint(termWithoutPrefix, 10, 32)
-								filterCondition := QueryConditionWhere{
-									Field: searchPrefix.FieldName,
-									Cmp:   "LIKE",
-									Val:   number,
-								}
-								conditions.where = append(conditions.where, &filterCondition)
-								break
+				var usePrefixSearch bool
+				for pString, searchPrefix := range q.collection.SearchPrefixes {
+					if strings.HasPrefix(term, pString) {
+						termWithoutPrefix := term[len(pString):]
+						if re_numeric.MatchString(termWithoutPrefix) {
+							usePrefixSearch = true
+							number, _ := strconv.ParseUint(termWithoutPrefix, 10, 32)
+							filterCondition := QueryConditionWhere{
+								Field: searchPrefix.FieldName,
+								Cmp:   "LIKE",
+								Val:   number,
 							}
+							conditions.where = append(conditions.where, &filterCondition)
+							break
 						}
 					}
+				}
 
-					if !usePrefixSearch {
-						for _, part := range parts {
-							partGroup := make([]QueryCondition, 0, 0)
-							for _, mappedField := range q.map_field {
-								condition := mappedField.ConstructQuery(part)
-								if condition != nil {
-									partGroup = append(partGroup, condition)
-								}
+				if !usePrefixSearch {
+					for _, part := range parts {
+						partGroup := make([]QueryCondition, 0, 0)
+						for _, mappedField := range q.map_field {
+							condition := mappedField.ConstructQuery(part)
+							if condition != nil {
+								partGroup = append(partGroup, condition)
 							}
-							j1, jp1, _, _, err := q.JoinConditionsWith(partGroup, " OR ")
-							if err != nil {
-								returnErr = err
-								return //BAD
-							}
-							strCondition := QueryConditionString{Str: j1, Parameters: jp1}
-							conditions.where = append(conditions.where, &strCondition)
 						}
+						j1, jp1, _, _, err := q.JoinConditionsWith(partGroup, " OR ")
+						if err != nil {
+							returnErr = err
+							return //BAD
+						}
+						strCondition := QueryConditionString{Str: j1, Parameters: jp1}
+						conditions.where = append(conditions.where, &strCondition)
 					}
 				}
 			} else {
