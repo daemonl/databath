@@ -104,6 +104,8 @@ func FieldByType(typeString string) (FieldType, error) {
 		return &types.FieldFile{}, nil
 	case "enum":
 		return &types.FieldEnum{}, nil
+	case "patientcard":
+		return &types.FieldPatientCard{}, nil
 
 	case "autotimestamp":
 		return &types.FieldInt{}, nil
