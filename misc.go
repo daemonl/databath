@@ -56,7 +56,7 @@ func (mf *MappedField) ConstructQuery(term string) *QueryConditionWhere {
 			return &condition
 		}
 	} else {
-		fmt.Printf("Can't search mapped field %s", mf.path)
+		fmt.Printf("Can't search mapped field %s\n", mf.path)
 		return nil
 	}
 }
