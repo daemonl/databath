@@ -6,50 +6,51 @@ import (
 	"log"
 	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/daemonl/databath"
-	"github.com/daemonl/databath/types"
+	"github.com/daemonl/go_lib/extdb"
 )
 
 type TableStatus struct {
-	Name            string  `sql:"Name"`
-	Engine          string  `sql:"Engine"`
-	Version         *uint64 `sql:"Version"`
-	Row_format      *string `sql:"Row_format"`
-	Rows            *uint64 `sql:"Rows"`
-	Avg_row_length  *uint64 `sql:"Avg_row_length"`
-	Data_length     *uint64 `sql:"Data_length"`
-	Max_data_length *uint64 `sql:"Max_data_length"`
-	Index_length    *uint64 `sql:"Index_length"`
-	Data_free       *uint64 `sql:"Data_free"`
-	Auto_increment  *uint64 `sql:"Auto_increment"`
-	Create_time     *string `sql:"Create_time"`
-	Update_time     *string `sql:"Update_time"`
-	Check_time      *string `sql:"Check_time"`
-	Collation       *string `sql:"Collation"`
-	Checksum        *string `sql:"Checksum"`
-	Create_options  *string `sql:"Create_options"`
-	Comment         *string `sql:"Comment"`
+	Name            string  `db:"Name"`
+	Engine          string  `db:"Engine"`
+	Version         *uint64 `db:"Version"`
+	Row_format      *string `db:"Row_format"`
+	Rows            *uint64 `db:"Rows"`
+	Avg_row_length  *uint64 `db:"Avg_row_length" json:"-"`
+	Data_length     *uint64 `db:"Data_length" json:"-"`
+	Max_data_length *uint64 `db:"Max_data_length" json:"-"`
+	Index_length    *uint64 `db:"Index_length" json:"-"`
+	Data_free       *uint64 `db:"Data_free" json:"-"`
+	Auto_increment  *uint64 `db:"Auto_increment"`
+	Create_time     *string `db:"Create_time" json:"-"`
+	Update_time     *string `db:"Update_time" json:"-"`
+	Check_time      *string `db:"Check_time" json:"-"`
+	Collation       *string `db:"Collation"`
+	Checksum        *string `db:"Checksum" json:"-"`
+	Create_options  *string `db:"Create_options"`
+	Comment         *string `db:"Comment"`
 }
 
-type Column struct {
-	Field   string  `sql:"Field"`
-	Type    string  `sql:"Type"`
-	Null    string  `sql:"Null"`
-	Key     *string `sql:"Key"`
-	Default *string `sql:"Default"`
-	Extra   *string `sql:"Extra"`
+type ColumnStatus struct {
+	Field   string  `db:"Field"`
+	Type    string  `db:"Type"`
+	Null    string  `db:"Null"`
+	Key     *string `db:"Key"`
+	Default *string `db:"Default"`
+	Extra   *string `db:"Extra"`
 }
 
 type Index struct {
-	ConstraintName       string  `sql:"CONSTRAINT_NAME"`
-	TableName            *string `sql:"TABLE_NAME"`
-	ConstraintType       *string `sql:"CONSTRAINT_TYPE"`
-	ColumnName           *string `sql:"COLUMN_NAME"`
-	ReferencedTableName  *string `sql:"REFERENCED_TABLE_NAME"`
-	ReferencedColumnName *string `sql:"REFERENCED_COLUMN_NAME"`
+	ConstraintName       string  `db:"CONSTRAINT_NAME"`
+	TableName            *string `db:"TABLE_NAME"`
+	ConstraintType       *string `db:"CONSTRAINT_TYPE"`
+	ColumnName           *string `db:"COLUMN_NAME"`
+	ReferencedTableName  *string `db:"REFERENCED_TABLE_NAME"`
+	ReferencedColumnName *string `db:"REFERENCED_COLUMN_NAME"`
+	OwnerTable           *Table
+	OwnedTable           *Table
 	Used                 bool
 }
 
@@ -70,7 +71,7 @@ var reTrailingWhitespace *regexp.Regexp = regexp.MustCompile(`[\n\t\ ]+$`)
 
 var reCheckLength *regexp.Regexp = regexp.MustCompile(`^VARCHAR\(([0-9]+)\)`)
 
-func (c *Column) GetString() string {
+func (c *ColumnStatus) GetString() string {
 	built := c.Type
 	if c.Null == "NO" {
 		built += " NOT NULL"
@@ -152,6 +153,8 @@ func AddUnused(collection, column string) {
 
 func SyncDb(db *sql.DB, model *databath.Model, now bool) error {
 
+	edb := extdb.WrapDB(db)
+
 	// Fix any non InnoDB tables
 
 	res, err := db.Query(`SHOW TABLE STATUS WHERE Engine != 'InnoDB'`)
@@ -169,209 +172,103 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) error {
 	}
 	res.Close()
 
-	// Create and sync all of the collections
-	for collectionName, collection := range model.Collections {
-		log.Printf("COLLECTION: %s\n", collectionName)
+	// Load the table info to memory.
+	tableStatuses := []*TableStatus{}
+	tables := map[string]*Table{}
+	if err = edb.Select(&tableStatuses, `SHOW TABLE STATUS`); err != nil {
+		return err
+	}
 
-		if collection.ViewQuery != nil {
-			//TODO: Destroy any foreign keys.
-			MustExecF(now, db, "DROP TABLE IF EXISTS %s", collectionName)
-			MustExecF(now, db, "CREATE OR REPLACE VIEW %s AS %s", collectionName, *collection.ViewQuery)
-			log.Println("SKIP COLLECTION - It has a view query")
-			continue
+	for _, tableStatus := range tableStatuses {
+		t := &Table{
+			Name:    tableStatus.Name,
+			Indexes: map[string]*Index{},
+			Columns: map[string]*Column{},
+		}
+		t.Status = tableStatus
+		tables[tableStatus.Name] = t
+		constraints := []*Index{}
+		if err = edb.Select(&constraints, `
+			SELECT
+			  c.CONSTRAINT_NAME,
+			  c.TABLE_NAME,
+			  c.CONSTRAINT_TYPE,
+			  k.COLUMN_NAME,
+			  k.REFERENCED_TABLE_NAME,
+			  k.REFERENCED_COLUMN_NAME 
+			FROM information_schema.TABLE_CONSTRAINTS c
+			LEFT JOIN information_schema.KEY_COLUMN_USAGE k 
+			  ON c.CONSTRAINT_NAME = k.CONSTRAINT_NAME 
+			  AND c.TABLE_SCHEMA = k.TABLE_SCHEMA 
+			  AND c.TABLE_NAME = k.TABLE_NAME 
+			WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = ?`, tableStatus.Name); err != nil {
+			return fmt.Errorf("Error selecting constraints for %s: %s", tableStatus.Name, err.Error())
 		}
 
-		res, err := db.Query(`SHOW TABLE STATUS WHERE Name = ?`, collectionName)
+		for _, constraint := range constraints {
+			t.Indexes[constraint.ConstraintName] = constraint
+		}
+
+		columnStatuses := []*ColumnStatus{}
+		if err = edb.Select(&columnStatuses, `SHOW COLUMNS FROM `+tableStatus.Name); err != nil { // Can't use '?'
+			return fmt.Errorf("Error selecting columns for %s: %s", tableStatus.Name, err.Error())
+		}
+		for _, columnStatus := range columnStatuses {
+			column := &Column{
+				Status: columnStatus,
+				Name:   columnStatus.Field,
+				Table:  t,
+			}
+			t.Columns[columnStatus.Field] = column
+		}
+	}
+
+	/*
+		e, err := json.Marshal(tables)
 		if err != nil {
 			return err
 		}
-		//TODO: Cache the res, don't keep it open
-		if res.Next() {
-			indexRes, err := db.Query(`
-SELECT
-  c.CONSTRAINT_NAME,
-  c.TABLE_NAME,
-  c.CONSTRAINT_TYPE,
-  k.COLUMN_NAME,
-  k.REFERENCED_TABLE_NAME,
-  k.REFERENCED_COLUMN_NAME 
-FROM information_schema.TABLE_CONSTRAINTS c
-LEFT JOIN information_schema.KEY_COLUMN_USAGE k 
-  ON c.CONSTRAINT_NAME = k.CONSTRAINT_NAME 
-  AND c.TABLE_SCHEMA = k.TABLE_SCHEMA 
-  AND c.TABLE_NAME = k.TABLE_NAME 
-WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = "` + collectionName + `";
-`)
+		fmt.Println(string(e))
+	*/
+	//	return nil
 
-			if err != nil {
-				return err
+	// Create and sync all the collections
+	for collectionName, collection := range model.Collections {
+
+		table, ok := tables[collectionName]
+		if !ok {
+			table := &Table{
+				Name: collectionName,
 			}
-			indexes := []*Index{}
-			for indexRes.Next() {
-				index := Index{}
-				err := ScanToStruct(indexRes, &index, "sql")
-				if err != nil {
-					return err
-				}
-				indexes = append(indexes, &index)
-			}
-
-			deferredStatements := []string{}
-
-			// Create and sync all of the columns.
-
-			allColumnsRes, err := db.Query(`SHOW COLUMNS FROM ` + collectionName)
-			if err != nil {
-				return err
-			}
-			allColumns := map[string]Column{}
-			for allColumnsRes.Next() {
-				col := Column{}
-				err := ScanToStruct(allColumnsRes, &col, "sql")
-				if err != nil {
-					return err
-				}
-				allColumns[col.Field] = col
-				has := false
-				for colName, _ := range collection.Fields {
-					if col.Field == colName {
-						has = true
-						break
-					}
-
-				}
-				if !has {
-					log.Printf("UNUSED COLUMN: %s.%s\n", collectionName, col.Field)
-					AddUnused(collectionName, col.Field)
-				}
-			}
-			allColumnsRes.Close()
-
-			for colName, field := range collection.Fields {
-				col, ok := allColumns[colName]
-				if ok {
-					colStr := col.GetString()
-					modelStr := field.GetMysqlDef()
-					if colStr != modelStr {
-						log.Printf("CHANGE: '%s' '%s'\n", colStr, modelStr)
-
-						// If VARCHAR(100) etc
-						if reCheckLength.MatchString(modelStr) {
-							matches := reCheckLength.FindStringSubmatch(modelStr)
-							lenNewMax, _ := strconv.ParseUint(matches[1], 10, 64)
-							var lenExists *uint64
-
-							lengthRes, err := db.Query(fmt.Sprintf(`SELECT MAX(LENGTH(%s)) FROM %s`, colName, collectionName))
-							if err != nil {
-								return err
-							} else {
-								lengthRes.Next()
-								err = lengthRes.Scan(&lenExists)
-								lengthRes.Close()
-								if err != nil {
-									return err
-								}
-								if lenExists != nil {
-									log.Printf("%s.%s max length: %d fits into %s\n",
-										collectionName, colName, *lenExists, modelStr)
-									if *lenExists > lenNewMax {
-										return fmt.Errorf("%s.%s len = %d, larger than new def %s",
-											collectionName, colName, *lenExists, modelStr)
-									}
-								}
-							}
-
-						}
-						MustExecF(now, db, "ALTER TABLE %s CHANGE COLUMN %s %s %s",
-							collectionName, colName, colName, modelStr)
-					}
-				} else {
-					MustExecF(now, db, "ALTER TABLE %s ADD `%s` %s", collectionName, colName, field.GetMysqlDef())
-				}
-
-				var linkToCollectionPtr *string
-
-				refField, ok := field.Impl.(*types.FieldRef)
-				if ok {
-					linkToCollectionPtr = &refField.Collection
-				} else {
-					refIdField, ok := field.Impl.(*types.FieldRefID)
-					if ok {
-						linkToCollectionPtr = &refIdField.Collection
-					}
-				}
-				if linkToCollectionPtr != nil {
-					linkToCollection := *linkToCollectionPtr
-					var matchedIndex *Index = nil
-					for _, index := range indexes {
-						// If Matches
-
-						if index.ReferencedTableName != nil && colName == *index.ColumnName && *index.ReferencedTableName == linkToCollection {
-							matchedIndex = index
-							matchedIndex.Used = true
-							break
-						}
-
-					}
-
-					if matchedIndex == nil {
-						// Create It.
-						// Is it creatable with the current data?
-						badRowsRes, err := db.Query(fmt.Sprintf(`SELECT id, %s FROM %s WHERE %s IS NOT NULL AND %s NOT IN (SELECT %s FROM %s)`, colName, collectionName, colName, colName, "id", linkToCollection))
-						if err != nil {
-							log.Printf("Error on FK check for %s.%s\n", collectionName, colName)
-
-						} else {
-
-							hasBad := false
-							for badRowsRes.Next() {
-								hasBad = true
-								id := 0
-								fkVal := 0
-								badRowsRes.Scan(&id, &fkVal)
-								log.Printf("Foreign Key Test Fail: Entry %d for %s.%s references %s.id = %d, which doesn't exist\n", id, collectionName, colName, linkToCollection, fkVal)
-							}
-							badRowsRes.Close()
-							if hasBad {
-								return fmt.Errorf("Foreign Key Failure, check logs.")
-							}
-
-							if model.Collections[linkToCollection].ViewQuery == nil {
-
-								deferredStatements = append(deferredStatements, fmt.Sprintf(`ALTER TABLE %s 
-								ADD CONSTRAINT fk_%s_%s 
-								FOREIGN KEY (%s) 
-								REFERENCES %s(%s)`, collectionName, collectionName, colName, colName, linkToCollection, "id"))
-							}
-						}
-
-					}
-				}
-			}
-			for _, index := range indexes {
-				if !index.Used && *index.ConstraintType == "FOREIGN KEY" {
-					MustExecF(now, db, `
-					ALTER TABLE %s DROP FOREIGN KEY %s`, collectionName, index.ConstraintName)
-				}
-			}
-			for _, statement := range deferredStatements {
-				MustExecF(now, db, statement)
-			}
-
-		} else {
-			// CREATE!
-			params := make([]string, 0, 0)
-
-			for name, field := range collection.Fields {
-				params = append(params, fmt.Sprintf("`%s` %s", name, field.GetMysqlDef()))
-			}
-
-			params = append(params, "PRIMARY KEY (`id`)")
-
-			MustExecF(now, db, "CREATE TABLE %s (%s)", collectionName, strings.Join(params, ", "))
+			tables[collectionName] = table
 		}
-		res.Close()
+		table.Collection = collection
+
+		for fieldName, field := range collection.Fields {
+			column, ok := table.Columns[fieldName]
+			if !ok {
+				column := &Column{
+					Table: table,
+					Name:  fieldName,
+				}
+			}
+			column.Field = field
+		}
 	}
+
+	for _, t := range tables {
+		err := t.Sync()
+		if err != nil {
+			return err
+		}
+		err = t.setupIndexes()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Unused Tables
+	// Unused Columns
 
 	log.Println("==========")
 	log.Printf("\n\n%s\n\n", execString)
