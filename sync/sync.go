@@ -3,7 +3,6 @@ package sync
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"reflect"
 	"regexp"
 	"strings"
@@ -131,27 +130,14 @@ func ScanToStruct(res *sql.Rows, obj interface{}, tag string) error {
 	return nil
 }
 
-func MustExecF(now bool, db *sql.DB, format string, parameters ...interface{}) {
-	q := fmt.Sprintf(format, parameters...)
-	if now {
-		log.Println("EXEC: " + q)
-		_, err := db.Exec(q)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		q = reMidWhitespace.ReplaceAllString(q, " ")
-		q = reTrailingWhitespace.ReplaceAllString(q, "")
-		q = reLeadingWhitespace.ReplaceAllString(q, "")
-		execString += fmt.Sprintf("%s;\n", q)
+func BuildMigration(db *sql.DB, model *databath.Model) (*Migration, error) {
+
+	mig := &Migration{
+		Checks:        []*Statement{},
+		Statements:    []*Statement{},
+		UnusedTables:  []string{},
+		UnusedColumns: []string{},
 	}
-}
-
-func AddUnused(collection, column string) {
-	unused = append(unused, fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s;", collection, column))
-}
-
-func SyncDb(db *sql.DB, model *databath.Model, now bool) error {
 
 	edb := extdb.WrapDB(db)
 
@@ -159,16 +145,18 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) error {
 
 	res, err := db.Query(`SHOW TABLE STATUS WHERE Engine != 'InnoDB'`)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for res.Next() {
 		table := TableStatus{}
 		err := ScanToStruct(res, &table, "sql")
 		if err != nil {
-			return err
+			return nil, err
 		}
-		MustExecF(now, db, "ALTER TABLE %s ENGINE = 'InnoDB'", table.Name)
+		s := Statementf("ALTER TABLE %s ENGINE = 'InnoDB'", table.Name)
+		s.Owner = table.Name
+		mig.Statements = append(mig.Statements, s)
 	}
 	res.Close()
 
@@ -176,15 +164,12 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) error {
 	tableStatuses := []*TableStatus{}
 	tables := map[string]*Table{}
 	if err = edb.Select(&tableStatuses, `SHOW TABLE STATUS`); err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, tableStatus := range tableStatuses {
-		t := &Table{
-			Name:    tableStatus.Name,
-			Indexes: map[string]*Index{},
-			Columns: map[string]*Column{},
-		}
+		t := getBlankTable(tableStatus.Name)
+
 		t.Status = tableStatus
 		tables[tableStatus.Name] = t
 		constraints := []*Index{}
@@ -202,7 +187,7 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) error {
 			  AND c.TABLE_SCHEMA = k.TABLE_SCHEMA 
 			  AND c.TABLE_NAME = k.TABLE_NAME 
 			WHERE c.TABLE_SCHEMA = DATABASE() AND c.TABLE_NAME = ?`, tableStatus.Name); err != nil {
-			return fmt.Errorf("Error selecting constraints for %s: %s", tableStatus.Name, err.Error())
+			return nil, fmt.Errorf("Error selecting constraints for %s: %s", tableStatus.Name, err.Error())
 		}
 
 		for _, constraint := range constraints {
@@ -211,7 +196,7 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) error {
 
 		columnStatuses := []*ColumnStatus{}
 		if err = edb.Select(&columnStatuses, `SHOW COLUMNS FROM `+tableStatus.Name); err != nil { // Can't use '?'
-			return fmt.Errorf("Error selecting columns for %s: %s", tableStatus.Name, err.Error())
+			return nil, fmt.Errorf("Error selecting columns for %s: %s", tableStatus.Name, err.Error())
 		}
 		for _, columnStatus := range columnStatuses {
 			column := &Column{
@@ -223,23 +208,12 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) error {
 		}
 	}
 
-	/*
-		e, err := json.Marshal(tables)
-		if err != nil {
-			return err
-		}
-		fmt.Println(string(e))
-	*/
-	//	return nil
-
 	// Create and sync all the collections
 	for collectionName, collection := range model.Collections {
 
 		table, ok := tables[collectionName]
 		if !ok {
-			table := &Table{
-				Name: collectionName,
-			}
+			table = getBlankTable(collectionName)
 			tables[collectionName] = table
 		}
 		table.Collection = collection
@@ -247,10 +221,11 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) error {
 		for fieldName, field := range collection.Fields {
 			column, ok := table.Columns[fieldName]
 			if !ok {
-				column := &Column{
+				column = &Column{
 					Table: table,
 					Name:  fieldName,
 				}
+				table.Columns[fieldName] = column
 			}
 			column.Field = field
 		}
@@ -259,19 +234,38 @@ func SyncDb(db *sql.DB, model *databath.Model, now bool) error {
 	for _, t := range tables {
 		err := t.Sync()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		err = t.setupIndexes()
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	// Unused Tables
-	// Unused Columns
+	for _, t := range tables {
+		if t.Collection == nil {
+			mig.UnusedTables = append(mig.UnusedTables, t.Name)
+			continue
+		}
+		for _, check := range t.Checks {
+			mig.Checks = append(mig.Checks, check)
+		}
+		for _, s := range t.Statements {
+			mig.Statements = append(mig.Statements, s)
+		}
+		for _, col := range t.Columns {
+			if col.Field == nil {
+				mig.UnusedColumns = append(mig.UnusedColumns, t.Name+"."+col.Name)
+			}
+		}
+	}
 
-	log.Println("==========")
-	log.Printf("\n\n%s\n\n", execString)
-	log.Printf("Unused: \n%s\n", strings.Join(unused, "\n"))
-	return nil
+	for _, t := range tables {
+		for _, s := range t.PostStatements {
+			mig.Statements = append(mig.Statements, s)
+		}
+	}
+
+	return mig, nil
+
 }

@@ -2,7 +2,6 @@ package sync
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/daemonl/databath"
@@ -14,15 +13,39 @@ type Table struct {
 	Columns        map[string]*Column
 	Indexes        map[string]*Index
 	Collection     *databath.Collection
-	Statements     []string
-	PostStatements []string
-	Checks         []string
+	Statements     []*Statement
+	PostStatements []*Statement
+	Checks         []*Statement
+}
+
+func getBlankTable(name string) *Table {
+	return &Table{
+		Name:           name,
+		Indexes:        map[string]*Index{},
+		Columns:        map[string]*Column{},
+		Statements:     []*Statement{},
+		PostStatements: []*Statement{},
+		Checks:         []*Statement{},
+	}
 }
 
 type RefField interface {
 	GetRefCollectionName() string
 }
 
+func (t *Table) addStatement(s *Statement) {
+	t.Statements = append(t.Statements, s)
+}
+
+func (t *Table) addCheck(s *Statement) {
+	t.Checks = append(t.Checks, s)
+}
+
+func (t *Table) addPost(s *Statement) {
+	t.PostStatements = append(t.PostStatements, s)
+}
+
+/*
 func (t *Table) addStatementf(s string, p ...interface{}) {
 	t.Statements = append(t.Statements, fmt.Sprintf(s, p...))
 }
@@ -34,6 +57,7 @@ func (t *Table) addPostStatementf(s string, p ...interface{}) {
 func (t *Table) addCheckf(s string, p ...interface{}) {
 	t.Checks = append(t.Checks, fmt.Sprintf(s, p...))
 }
+*/
 
 func (t *Table) Sync() error {
 
@@ -76,7 +100,10 @@ func (t *Table) setupIndexes() error {
 
 	for _, index := range t.Indexes {
 		if !index.Used && *index.ConstraintType == "FOREIGN KEY" {
-			t.addStatementf("ALTER TABLE %s DROP FOREIGN KEY %s", t.Name, index.ConstraintName)
+			s := Statementf("ALTER TABLE %s DROP FOREIGN KEY %s", t.Name, index.ConstraintName)
+			s.Owner = t.Name + ":FK:" + index.ConstraintName
+			s.Notes = "Unused Foreign Key"
+			t.addStatement(s)
 		}
 	}
 	return nil
@@ -84,9 +111,14 @@ func (t *Table) setupIndexes() error {
 
 func (t *Table) setupViewQuery() error {
 	//TODO: Destroy any foreign keys.
-	MustExecF(now, db, "DROP TABLE IF EXISTS %s", collectionName)
-	MustExecF(now, db, "CREATE OR REPLACE VIEW %s AS %s", collectionName, *collection.ViewQuery)
-	log.Println("SKIP COLLECTION - It has a view query")
+	sDrop := Statementf("DROP TABLE IF EXISTS %s", t.Name)
+	sCreate := Statementf("CREATE OR REPLACE VIEW %s AS %s", t.Name, *t.Collection.ViewQuery)
+	sDrop.Owner = t.Name
+	sCreate.Owner = t.Name
+	sDrop.Notes = "Just in case"
+	sCreate.Notes = "Always run, not only on changes"
+	t.addStatement(sDrop)
+	t.addStatement(sCreate)
 	return nil
 }
 
@@ -99,7 +131,9 @@ func (t *Table) create() error {
 
 	params = append(params, "PRIMARY KEY (`id`)")
 
-	t.addStatementf("CREATE TABLE %s (%s)", t.Name, strings.Join(params, ", "))
+	s := Statementf("CREATE TABLE %s (%s)", t.Name, strings.Join(params, ", "))
+	s.Owner = t.Name
+	t.addStatement(s)
 
 	return nil
 }

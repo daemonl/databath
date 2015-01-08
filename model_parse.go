@@ -42,7 +42,6 @@ type rawSearchPrefix struct {
 }
 
 func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, error) {
-	log.Println("=== Model Init ===")
 
 	var model rawModel
 	decoder := json.NewDecoder(modelReader)
@@ -55,7 +54,6 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 
 	customQueries := make(map[string]*CustomQuery)
 	for queryName, rawQuery := range model.CustomQueries {
-		//log.Printf("Custom Query: %s", queryName)
 		cq := CustomQuery{
 			Query:     rawQuery.Query,
 			InFields:  make([]*Field, len(rawQuery.InFields), len(rawQuery.InFields)),
@@ -82,7 +80,6 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 	collections := make(map[string]*Collection)
 
 	for collectionName, rawCollection := range model.Collections {
-		//log.Printf("Read Collection %s\n", collectionName)
 		fields := make(map[string]*Field)
 
 		_, ok := rawCollection.Fields["id"]
@@ -141,7 +138,6 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 			}
 
 			for name, rawSet := range rawCollection.FieldSets {
-				//log.Printf("Evaluate Fieldset: %s", name)
 				rawSet = append(rawSet, "id")
 
 				fieldSetDefs := make([]FieldSetFieldDef, len(rawSet), len(rawSet))
@@ -257,7 +253,6 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 
 		if h.Raw != nil {
 			rawQuery := h.Raw
-			//log.Println("Custom Query in Hook")
 			cq := CustomQuery{
 				Query:     rawQuery.Query,
 				InFields:  make([]*Field, len(rawQuery.InFields), len(rawQuery.InFields)),
@@ -272,7 +267,6 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 				}
 				cq.InFields[i] = field
 			}
-			//log.Println("DONE")
 			h.CustomAction = &cq
 		}
 
@@ -311,7 +305,6 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 
 	}
 
-	log.Println("=== End Model Init ===")
 	return returnModel, err
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -48,11 +49,27 @@ func main() {
 		return
 	}
 	defer db.Close()
-	err = sync.SyncDb(db, model, force)
+	mig, err := sync.BuildMigration(db, model)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(4)
 		return
+	}
+
+	e, err := json.Marshal(mig)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(4)
+		return
+	}
+	fmt.Println(string(e))
+
+	if force {
+		err := mig.Run(db)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(5)
+		}
 	}
 
 	if len(setUser) > 0 {
