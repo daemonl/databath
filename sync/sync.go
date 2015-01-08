@@ -3,7 +3,6 @@ package sync
 import (
 	"database/sql"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strings"
 
@@ -84,52 +83,6 @@ func (c *ColumnStatus) GetString() string {
 	return strings.ToUpper(built)
 }
 
-func ScanToStruct(res *sql.Rows, obj interface{}, tag string) error {
-	if len(tag) == 0 {
-		tag = "sql"
-	}
-	rv := reflect.ValueOf(obj)
-	rt := reflect.TypeOf(obj)
-
-	if reflect.Indirect(rv).Kind().String() != "struct" {
-		return fmt.Errorf("KIND NOT STRUCT" + rv.Kind().String())
-	}
-
-	valueElm := rv.Elem()
-
-	maxElements := rt.Elem().NumField()
-	//scanVals := make([]interface{}, maxElements, maxElements)
-	cols, err := res.Columns()
-	if err != nil {
-		return err
-	}
-
-	scanVals := map[string]interface{}{}
-
-	for i := 0; i < maxElements; i++ {
-		interf := valueElm.Field(i).Addr().Interface()
-		sqlTag := valueElm.Type().Field(i).Tag.Get(tag)
-		if len(sqlTag) < 1 || sqlTag == "-" {
-			continue
-		}
-		scanVals[sqlTag] = interf
-	}
-	orderedScanVals := make([]interface{}, len(cols), len(cols))
-	for i, colName := range cols {
-		interfPtr, ok := scanVals[colName]
-		if !ok {
-			return &SyncError{fmt.Sprintf("SQL Column '%s' had no matching struct tag", colName)}
-		}
-		orderedScanVals[i] = interfPtr
-	}
-	err = res.Scan(orderedScanVals...)
-
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func BuildMigration(db *sql.DB, model *databath.Model) (*Migration, error) {
 
 	mig := &Migration{
@@ -143,28 +96,23 @@ func BuildMigration(db *sql.DB, model *databath.Model) (*Migration, error) {
 
 	// Fix any non InnoDB tables
 
-	res, err := db.Query(`SHOW TABLE STATUS WHERE Engine != 'InnoDB'`)
+	nonInno := []*TableStatus{}
+	err := edb.Select(&nonInno, `SHOW TABLE STATUS WHERE Engine != 'InnoDB'`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Loading Table != InnoDB Status: %s", err.Error())
 	}
 
-	for res.Next() {
-		table := TableStatus{}
-		err := ScanToStruct(res, &table, "sql")
-		if err != nil {
-			return nil, err
-		}
+	for _, table := range nonInno {
 		s := Statementf("ALTER TABLE %s ENGINE = 'InnoDB'", table.Name)
 		s.Owner = table.Name
 		mig.Statements = append(mig.Statements, s)
 	}
-	res.Close()
 
 	// Load the table info to memory.
 	tableStatuses := []*TableStatus{}
 	tables := map[string]*Table{}
-	if err = edb.Select(&tableStatuses, `SHOW TABLE STATUS`); err != nil {
-		return nil, err
+	if err = edb.Select(&tableStatuses, `SHOW TABLE STATUS WHERE ENGINE IS NOT NULL`); err != nil {
+		return nil, fmt.Errorf("Loading all table status: %s", err.Error())
 	}
 
 	for _, tableStatus := range tableStatuses {
@@ -238,7 +186,7 @@ func BuildMigration(db *sql.DB, model *databath.Model) (*Migration, error) {
 		}
 		err = t.setupIndexes()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Error seting indexes on table %s: %s", t.Name, err.Error())
 		}
 	}
 

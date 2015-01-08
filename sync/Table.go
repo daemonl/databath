@@ -45,20 +45,6 @@ func (t *Table) addPost(s *Statement) {
 	t.PostStatements = append(t.PostStatements, s)
 }
 
-/*
-func (t *Table) addStatementf(s string, p ...interface{}) {
-	t.Statements = append(t.Statements, fmt.Sprintf(s, p...))
-}
-
-func (t *Table) addPostStatementf(s string, p ...interface{}) {
-	t.PostStatements = append(t.PostStatements, fmt.Sprintf(s, p...))
-}
-
-func (t *Table) addCheckf(s string, p ...interface{}) {
-	t.Checks = append(t.Checks, fmt.Sprintf(s, p...))
-}
-*/
-
 func (t *Table) Sync() error {
 
 	// Should the table exist?

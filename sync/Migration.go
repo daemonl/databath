@@ -14,13 +14,14 @@ type Migration struct {
 	UnusedColumns []string
 }
 
-func (mig *Migration) Run(db *sql.DB) error {
+func (mig *Migration) Check(db *sql.DB) (bool, error) {
+
 	checksFailed := false
 	for _, check := range mig.Checks {
 		log.Printf("%s: %s\n", check.Owner, check.SQL)
 		rows, err := db.Query(check.SQL)
 		if err != nil {
-			return err
+			return true, err
 		}
 		columns, _ := rows.Columns()
 		for rows.Next() {
@@ -31,15 +32,21 @@ func (mig *Migration) Run(db *sql.DB) error {
 			}
 			err := rows.Scan(row...)
 			if err != nil {
-				return err
+				return true, err
 			}
 			fmt.Println(strings.Join(strs, ", "))
 			checksFailed = true
 		}
 		rows.Close()
-
 	}
+	return checksFailed, nil
+}
 
+func (mig *Migration) Run(db *sql.DB) error {
+	checksFailed, err := mig.Check(db)
+	if err != nil {
+		return err
+	}
 	if checksFailed {
 		return fmt.Errorf("Checks Failed")
 	}
