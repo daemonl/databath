@@ -107,9 +107,12 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 			parameters = append(parameters, parameter)
 			queryString = fmt.Sprintf("%s REGEXP ?", queryUsingName)
 			return //GOOD
+		} else {
+			dbVal = "[[:<:]]" + dbVal + "[^\"]*((\",)|(\"\\}))"
+			parameters = append(parameters, dbVal)
+			queryString = fmt.Sprintf("%s REGEXP ?", queryUsingName)
+			return //GOOD
 		}
-		returnErr = UserErrorF("invalid blobject search")
-		return //BAD
 	} else if qc.Cmp == "IS NULL" || qc.Cmp == "IS NOT NULL" {
 		queryString = fmt.Sprintf("%s %s", queryUsingName, qc.Cmp)
 		return //GOOD
