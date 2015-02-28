@@ -1,17 +1,39 @@
 package types
 
-import ()
-
 //////////
 // bool //
 //////////
-type FieldBool struct{}
+type FieldBool struct {
+	Optional bool
+}
 
-func (f *FieldBool) GetMysqlDef() string { return "TINYINT(1) NOT NULL" }
+func (f *FieldBool) GetMysqlDef() string {
+
+	def := "TINYINT(1)"
+
+	if !f.Optional {
+		def = def + " NOT NULL"
+	} else {
+		def = def + " NULL"
+	}
+
+	return def
+
+}
 
 func (f *FieldBool) IsSearchable() bool { return false }
 
-func (f *FieldBool) Init(raw map[string]interface{}) error { return nil }
+func (f *FieldBool) Init(raw map[string]interface{}) error {
+	optional, ok := raw["optional"]
+	if ok {
+		optionalBool, ok := optional.(bool)
+		if ok {
+			f.Optional = optionalBool
+			return nil
+		}
+	}
+	return nil
+}
 
 func (f *FieldBool) FromDb(stored interface{}) (interface{}, error) {
 	storedBool, ok := stored.(*bool)

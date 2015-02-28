@@ -127,6 +127,9 @@ func FieldByType(typeString string) (FieldType, error) {
 	case "blobject":
 		return &types.FieldBlobject{}, nil
 
+	case "gob":
+		return &types.FieldGob{}, nil
+
 	case "refid":
 		return &types.FieldRefID{}, nil
 

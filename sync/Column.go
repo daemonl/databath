@@ -47,7 +47,7 @@ func (c *Column) Sync() error {
 		c.Table.addCheck(s)
 	}
 
-	s := Statementf("ALTER TABLE %s CHANGE COLUMN %s %s %s",
+	s := Statementf("ALTER TABLE %s CHANGE COLUMN `%s` `%s` %s",
 		c.Table.Name, c.Name, c.Name, modelStr)
 	s.Owner = c.Table.Name + "." + c.Name
 	s.Notes = "Existing: " + colStr
