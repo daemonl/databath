@@ -107,6 +107,9 @@ func FieldByType(typeString string) (FieldType, error) {
 	case "patientcard":
 		return &types.FieldPatientCard{}, nil
 
+	case "color":
+		return &types.FieldString{}, nil
+
 	case "autotimestamp":
 		return &types.FieldInt{}, nil
 
