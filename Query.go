@@ -113,7 +113,7 @@ func (q *Query) Dump() {
 	log.Println("END Field Map")
 }
 
-func (q *Query) BuildSelect() (string, []interface{}, error) {
+func (q *Query) BuildSelect() (string, string, []interface{}, error) {
 	rootIncludedTable, _ := q.includeCollection("", q.collection.TableName)
 
 	allParameters := make([]interface{}, 0, 0)
@@ -125,7 +125,7 @@ func (q *Query) BuildSelect() (string, []interface{}, error) {
 		//log.Printf("</w>")
 		if err != nil {
 			log.Printf("Walk Error %s", err.Error())
-			return "", allParameters, err
+			return "", "", allParameters, err
 		}
 	}
 	//log.Printf("==END Walk==")
@@ -144,19 +144,17 @@ func (q *Query) BuildSelect() (string, []interface{}, error) {
 		i++
 	}
 
-	//log.Printf("==END Select==")
-
-	//log.Printf("==START Where==")
 	whereString, whereParameters, havingString, havingParameters, err := q.makeWhereString(q.conditions)
 	if err != nil {
-		return "", allParameters, err
+		return "", "", allParameters, err
 	}
-	//log.Printf("==END Where==")
+
 	pageString, err := q.makePageString(q.conditions)
 	if err != nil {
-		return "", allParameters, err
+		return "", "", allParameters, err
 	}
 	joinString := strings.Join(q.joins, "\n  ")
+
 	sql := fmt.Sprintf(`SELECT %s FROM %s t0 %s %s GROUP BY t0.id %s %s`,
 		strings.Join(selectFields, ", "),
 		q.collection.TableName,
@@ -165,7 +163,12 @@ func (q *Query) BuildSelect() (string, []interface{}, error) {
 		havingString,
 		pageString)
 
-	return sql, append(whereParameters, havingParameters...), nil
+	sql2 := fmt.Sprintf(`SELECT COUNT(t0.id) FROM %s t0 %s %s GROUP BY t0.id`,
+		q.collection.TableName,
+		joinString,
+		whereString)
+
+	return sql, sql2, append(whereParameters, havingParameters...), nil
 }
 
 func (q *Query) BuildUpdate(changeset map[string]interface{}) (string, []interface{}, error) {

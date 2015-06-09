@@ -30,7 +30,7 @@ func (m *Model) GetIdentityString(db *sql.DB, collectionName string, pk uint64) 
 		log.Println(err)
 		return "", err
 	}
-	sql, parameters, err := q.BuildSelect()
+	sql, _, parameters, err := q.BuildSelect()
 	if err != nil {
 		log.Println(err)
 		return "", err
