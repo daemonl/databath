@@ -1,17 +1,19 @@
-package databath
+package model
 
 import (
 	"fmt"
 	"log"
 	"strings"
+
+	"github.com/daemonl/databath/types"
 )
 
 type FieldSetFieldDefRaw struct {
-	Query    string  `json:"query"`
-	DataType string  `json:"dataType"`
-	Path     string  `json:"path"`
-	Join     *string `json:"join"`
-	SearchOn *string `json:"searchOn"`
+	Query    string              `json:"query"`
+	DataType types.FieldTypeName `json:"dataType"`
+	Path     string              `json:"path"`
+	Join     *string             `json:"join"`
+	SearchOn *string             `json:"searchOn"`
 }
 
 func (f *FieldSetFieldDefRaw) init() error { return nil }
@@ -20,13 +22,13 @@ func (f *FieldSetFieldDefRaw) GetPath() string { return f.Path }
 
 func (f *FieldSetFieldDefRaw) walkField(query *Query, baseTable *MappedTable, index int) error {
 
-	fieldType, err := FieldByType(f.DataType)
+	fieldType, err := types.FieldByType(f.DataType)
 	if err != nil {
 		return err
 	}
 
 	sel := ""
-	mappedField, err := query.includeField(f.Path, &Field{Impl: fieldType}, f, baseTable, &sel)
+	mappedField, err := query.includeField(f.Path, &Field{FieldType: fieldType}, f, baseTable, &sel)
 	mappedField.AllowSearch = false
 
 	var replError error

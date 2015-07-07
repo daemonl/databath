@@ -1,6 +1,6 @@
 package types
 
-import ()
+import "encoding/xml"
 
 type FieldRef struct {
 	Collection string
@@ -18,34 +18,36 @@ func (f *FieldRef) GetMysqlDef() string { return "INT(11) UNSIGNED NULL" }
 
 func (f *FieldRef) IsSearchable() bool { return false }
 
-func (f *FieldRef) Init(raw map[string]interface{}) error {
-	collection, ok := raw["collection"]
-	if !ok {
-		return ModelDefinitionError{"Ref Field has no key 'collection'", ""}
+func (f *FieldRef) GetRefCollectionName() string {
+	return f.Collection
+}
+func (f *FieldRef) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	xmlRepresentation := &struct {
+		Collection string `xml:"collection,attr"`
+		OnDelete   string `xml:"on_delete",attr"`
+		Limits     []struct {
+			Path  string `xml:"path,attr"`
+			Value string `xml:",innerxml"`
+		} `xml:"limit"`
+	}{}
+	err := d.DecodeElement(xmlRepresentation, &start)
+	if err != nil {
+		return err
 	}
-	collectionString := collection.(string)
-	f.Collection = collectionString
-
-	onDelete, ok := raw["on_delete"]
-	if ok {
-		if onDelete == "CASCADE" {
-			f.OnDelete = RefOnDeleteCascade
-		} else if onDelete == "NULL" {
-			f.OnDelete = RefOnDeleteNull
-		} else{
-			f.OnDelete = RefOnDeletePrevent
-		}
-	} else {
+	f.Collection = xmlRepresentation.Collection
+	switch xmlRepresentation.OnDelete {
+	case "CASCADE":
+		f.OnDelete = RefOnDeleteCascade
+	case "NULL":
+		f.OnDelete = RefOnDeleteNull
+	default:
 		f.OnDelete = RefOnDeletePrevent
 	}
-
 	f.Limit = map[string]interface{}{}
-
-	rawLimit, ok := raw["limit"]
-	if ok {
-		l, ok := rawLimit.(map[string]interface{})
-		if ok {
-			f.Limit = l
+	for _, limit := range xmlRepresentation.Limits {
+		f.Limit[limit.Path], err = InferTypeFromString(limit.Value)
+		if err != nil {
+			return nil
 		}
 	}
 	return nil

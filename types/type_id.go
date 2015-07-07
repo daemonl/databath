@@ -8,8 +8,6 @@ func (f *FieldId) GetMysqlDef() string { return "INT(11) UNSIGNED NOT NULL AUTO_
 
 func (f *FieldId) IsSearchable() bool { return false }
 
-func (f *FieldId) Init(raw map[string]interface{}) error { return nil }
-
 func (f *FieldId) FromDb(stored interface{}) (interface{}, error) {
 	// uInt64 -> uInt64
 	storedInt, ok := stored.(*uint64)

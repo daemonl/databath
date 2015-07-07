@@ -13,8 +13,6 @@ func (f *FieldFile) GetMysqlDef() string { return "VARCHAR(255) NULL" }
 
 func (f *FieldFile) IsSearchable() bool { return true }
 
-func (f *FieldFile) Init(raw map[string]interface{}) error { return nil }
-
 func (f *FieldFile) FromDb(stored interface{}) (interface{}, error) {
 	// String -> String
 

@@ -11,8 +11,6 @@ func (f *FieldBlobject) GetMysqlDef() string { return "TEXT NULL" }
 
 func (f *FieldBlobject) IsSearchable() bool { return true }
 
-func (f *FieldBlobject) Init(raw map[string]interface{}) error { return nil }
-
 func (f *FieldBlobject) FromDb(stored interface{}) (interface{}, error) {
 	// String -> String
 	storedString, ok := stored.(*string)

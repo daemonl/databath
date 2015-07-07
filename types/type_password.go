@@ -11,8 +11,6 @@ func (f *FieldPassword) GetMysqlDef() string { return "VARCHAR(512) NULL" }
 
 func (f *FieldPassword) IsSearchable() bool { return false }
 
-func (f *FieldPassword) Init(raw map[string]interface{}) error { return nil }
-
 func (f *FieldPassword) FromDb(stored interface{}) (interface{}, error) {
 	// String -> String
 	return "*", nil

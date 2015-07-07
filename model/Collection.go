@@ -1,4 +1,4 @@
-package databath
+package model
 
 import (
 	"database/sql"
@@ -37,7 +37,7 @@ func (c *Collection) GetFieldSet(fieldSetNamePointer *string) ([]FieldSetFieldDe
 
 	fields, ok := c.FieldSets[fieldSetName]
 	if !ok {
-		return nil, UserErrorF("Fieldset %s doesn't exist in %s", fieldSetName, c.TableName)
+		return nil, fmt.Errorf("Fieldset %s doesn't exist in %s", fieldSetName, c.TableName)
 	}
 	log.Printf("Using fieldset: %s.%s\n", c.TableName, fieldSetName)
 
@@ -55,9 +55,9 @@ func (c *Collection) CheckDelete(db *sql.DB, id uint64) (*DeleteCheckResult, err
 	}
 
 	for _, field := range c.ForeignKeys {
-		refField, ok := field.Impl.(*types.FieldRef)
+		refField, ok := field.FieldType.(*types.FieldRef)
 		if !ok {
-			return nil, ParseErrF("Foreign key not a ref type")
+			return nil, fmt.Errorf("Foreign key not a ref type")
 		}
 
 		sql := fmt.Sprintf("SELECT id FROM `%s` WHERE  %s.%s = %d", field.Collection.TableName, field.Collection.TableName, field.Path, id)

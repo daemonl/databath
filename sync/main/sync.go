@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"encoding/xml"
 	"flag"
 	"fmt"
 	"log"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/daemonl/databath"
 	"github.com/daemonl/databath/sync"
+	"github.com/daemonl/databath/xml_model"
 	"github.com/daemonl/go_gsd/torch"
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -27,6 +29,22 @@ func init() {
 	flag.StringVar(&setUser, "setuser", "", "specify a user for development username:password, will create or update")
 }
 
+type ModelFactory interface {
+	ToDatabath() (*databath.Model, error)
+}
+
+func getRawModel(filename string) (ModelFactory, error) {
+	modelFile, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer modelFile.Close()
+	decoder := xml.NewDecoder(modelFile)
+	rawModel := &xml_model.Model{}
+	err = decoder.Decode(rawModel)
+	return rawModel, err
+}
+
 func main() {
 	flag.Parse()
 	if len(modelFilename) < 1 {
@@ -35,12 +53,27 @@ func main() {
 		return
 	}
 
-	model, err := databath.ReadModelFromFileForSync(modelFilename)
+	modelFactory, err := getRawModel(modelFilename)
 	if err != nil {
-		fmt.Printf("Error reading model: %s\n", err.Error())
+		fmt.Fprint(os.Stderr, err.Error())
 		os.Exit(2)
 		return
 	}
+	model, err := modelFactory.ToDatabath()
+	if err != nil {
+		fmt.Fprint(os.Stderr, err.Error())
+		os.Exit(3)
+		return
+	}
+
+	/*
+		model, err := databath.ReadModelFromFileForSync(modelFilename)
+		if err != nil {
+			fmt.Printf("Error reading model: %s\n", err.Error())
+			os.Exit(2)
+			return
+		}
+	*/
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {

@@ -4,7 +4,7 @@ package types
 // bool //
 //////////
 type FieldBool struct {
-	Optional bool
+	Optional bool `xml:"optional,attr" json:"optional"`
 }
 
 func (f *FieldBool) GetMysqlDef() string {
@@ -22,18 +22,6 @@ func (f *FieldBool) GetMysqlDef() string {
 }
 
 func (f *FieldBool) IsSearchable() bool { return false }
-
-func (f *FieldBool) Init(raw map[string]interface{}) error {
-	optional, ok := raw["optional"]
-	if ok {
-		optionalBool, ok := optional.(bool)
-		if ok {
-			f.Optional = optionalBool
-			return nil
-		}
-	}
-	return nil
-}
 
 func (f *FieldBool) FromDb(stored interface{}) (interface{}, error) {
 	storedBool, ok := stored.(*bool)

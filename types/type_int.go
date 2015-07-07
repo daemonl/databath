@@ -13,8 +13,6 @@ func (f *FieldInt) GetMysqlDef() string { return "INT(11) UNSIGNED NULL" }
 
 func (f *FieldInt) IsSearchable() bool { return false }
 
-func (f *FieldInt) Init(raw map[string]interface{}) error { return nil }
-
 func (f *FieldInt) FromDb(stored interface{}) (interface{}, error) {
 	// Int64 -> Int64
 	storedInt, ok := stored.(*int64)

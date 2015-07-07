@@ -1,7 +1,11 @@
-package databath
+package model
 
 import (
 	"database/sql"
+	"fmt"
+	"regexp"
+
+	"github.com/daemonl/databath/usererror"
 )
 
 type CustomQuery struct {
@@ -11,16 +15,18 @@ type CustomQuery struct {
 	Type      string
 }
 
+var re_questionmark = regexp.MustCompile(`\?`)
+
 func (cq *CustomQuery) Run(db *sql.DB, inFields []interface{}) ([]map[string]interface{}, error) {
 	allRows := make([]map[string]interface{}, 0, 0)
 	if len(inFields) != len(cq.InFields) {
-		return allRows, UserErrorF("Could not run query, got %d parameters, expected %d", len(inFields), len(cq.InFields))
+		return allRows, usererror.UserErrorF("Could not run query, got %d parameters, expected %d", len(inFields), len(cq.InFields))
 	}
 	dbFields := make([]string, len(inFields), len(inFields))
 	for i, field := range cq.InFields {
-		dbStr, err := field.ToDb(inFields[i], nil)
+		dbStr, err := field.ToDb(inFields[i])
 		if err != nil {
-			return allRows, UserErrorF("Could not run query: %s", err.Error())
+			return allRows, usererror.UserErrorF("Could not run query: %s", err.Error())
 		}
 		dbFields[i] = dbStr
 	}
@@ -76,7 +82,7 @@ func (cq *CustomQuery) Run(db *sql.DB, inFields []interface{}) ([]map[string]int
 			for i, colName := range sqlColumns {
 				col, ok := thisRow[colName]
 				if !ok {
-					return allRows, ParseErrF("Custom query column mismatch: %d %s", i, colName)
+					return allRows, fmt.Errorf("Custom query column mismatch: %d %s", i, colName)
 				}
 				cols[i] = col
 			}

@@ -8,8 +8,6 @@ func (f *FieldTime) GetMysqlDef() string { return "TIME NULL" }
 
 func (f *FieldTime) IsSearchable() bool { return false }
 
-func (f *FieldTime) Init(raw map[string]interface{}) error { return nil }
-
 func (f *FieldTime) FromDb(stored interface{}) (interface{}, error) {
 	//
 

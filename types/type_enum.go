@@ -1,13 +1,37 @@
 package types
 
 import (
+	"encoding/xml"
 	"fmt"
 )
 
 // string
 type FieldEnum struct {
-	Length  uint64
+	Length  int
 	Choices map[string]string
+}
+
+func (f *FieldEnum) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	xmlRepresentation := &struct {
+		Length  int `xml:"length,attr"`
+		Choices []struct {
+			Key   string `xml:"key,attr"`
+			Value string `xml:",innerxml"`
+		} `xml:"choice"`
+	}{}
+	err := d.DecodeElement(xmlRepresentation, &start)
+	if err != nil {
+		return err
+	}
+	f.Length = xmlRepresentation.Length
+	f.Choices = map[string]string{}
+	for _, choice := range xmlRepresentation.Choices {
+		f.Choices[choice.Key] = choice.Value
+		if f.Length < len(choice.Key) {
+			f.Length = len(choice.Key)
+		}
+	}
+	return nil
 }
 
 func (f *FieldEnum) GetMysqlDef() string {
@@ -15,24 +39,6 @@ func (f *FieldEnum) GetMysqlDef() string {
 }
 
 func (f *FieldEnum) IsSearchable() bool { return true }
-
-func (f *FieldEnum) Init(raw map[string]interface{}) error {
-	err := mapValueDefaultUInt64(raw, "length", 3, &f.Length)
-	if err != nil {
-		return err
-	}
-
-	choices, ok := raw["choices"].(map[string]interface{})
-	if !ok {
-		return UserErrorF("No choices key, %#v", raw)
-	}
-
-	f.Choices = make(map[string]string)
-	for k, v := range choices {
-		f.Choices[k] = fmt.Sprintf("%v", v)
-	}
-	return nil
-}
 
 func (f *FieldEnum) FromDb(stored interface{}) (interface{}, error) {
 	// String -> String

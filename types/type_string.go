@@ -6,22 +6,17 @@ import (
 
 // string
 type FieldString struct {
-	Length uint64
+	Length uint64 `xml:"length,attr"`
 }
 
 func (f *FieldString) GetMysqlDef() string {
+	if f.Length == 0 {
+		f.Length = 200
+	}
 	return fmt.Sprintf("VARCHAR(%d) NULL", f.Length)
 }
 
 func (f *FieldString) IsSearchable() bool { return true }
-
-func (f *FieldString) Init(raw map[string]interface{}) error {
-	err := mapValueDefaultUInt64(raw, "length", 200, &f.Length)
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
 func (f *FieldString) FromDb(stored interface{}) (interface{}, error) {
 	// String -> String

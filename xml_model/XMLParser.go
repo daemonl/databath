@@ -1,121 +1,93 @@
-package databath
+package xml_model
 
 import (
 	"fmt"
+
 	"github.com/daemonl/databath"
 	"github.com/daemonl/databath/types"
-	"io"
-	"log"
-	"os"
-	"strconv"
-	"strings"
 )
 
-type xmlModel struct {
-	Collections      []xmlCollection      `xml:"collection"`
-	CustomQueries    []xmlCustomQuery     `xml:"query"`
-	DynamicFunctions []xmlDynamicFunction `xml:"script"`
-	Hooks            []xmlHook            `xml:"hook"`
+type Model struct {
+	Collections      []*Collection `xml:"collection"`
+	CustomQueries    []*Query      `xml:"query"`
+	DynamicFunctions []*Function   `xml:"function"`
+	Hooks            []*Hook       `xml:"hook"`
 }
 
-type xmlCollection struct {
-	Name           string            `xml:"name,attr"`
-	Fields         xmlFields         `xml:"field"`
-	FieldSets      []xmlFieldSet     `xml:"fieldset"`
-	CustomFields   []xmlCustomField  `xml:"custom"`
-	SearchPrefixes []xmlSearchPrefix `xml:"search-prefix"`
-	//Masks          map[string]map[string][]interface{} `json:"masks"`
-	ViewQuery *string `xml:"view-query,attr,omitempty"`
+type Function struct {
+	Name     string `xml:"name,attr"`
+	Filename string `xml:"filename,attr"`
 }
 
-type xmlFields struct {
-	Fields []xmlField `xml:",any"`
+type View struct{}
+type CustomField struct{}
+type CollectionMask struct{}
+
+type Query struct {
+	Name      string           `xml:"name,attr"`
+	Type      string           `xml:"type,attr"`
+	SQL       string           `xml:"sql"`
+	InFields  []QueryParameter `xml:"parameter"`
+	OutFields []QueryField     `xml:"column"`
 }
 
-type xmlField struct {
-	XMLName xml.Name `xml:"name"`
-	// attributes...
-}
-
-type xmlFieldSet struct {
-	Fields []xmlFieldSetFieldDef `xml:",any"`
-}
-
-type xmlFieldSetFieldDef struct {
-	XMLName xml.Name `xml:"name"`
-	Label   string   `xml:"label,omitempty"`
-	Hidden  bool     `xml:"hidden,omitempty"`
-}
-
-type xmlCustomQuery struct {
-	Query string `xml:"sql"`
-	//InFields  []map[string]interface{}          `json:"parameters"`
-	//OutFields map[string]map[string]interface{} `json:"columns"`
+type QueryParameter struct {
+	Name string `xml:"name,attr"`
 	Type string `xml:"type,attr"`
 }
-type xmlSearchPrefix struct {
-	Field string `xml:"field"`
+
+type QueryField struct {
+	Name string              `xml:"name,attr"`
+	Type types.FieldTypeName `xml:"type,attr"`
 }
 
-func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, error) {
-	log.Println("=== Model Init ===")
+type SearchPrefix struct {
+	Prefix string `xml:"prefix,attr"`
+	Field  string `xml:"field,attr"`
+}
+type Hook struct{}
 
-	var model rawModel
-	decoder := json.NewDecoder(modelReader)
-	err := decoder.Decode(&model)
-	if err != nil {
-		return nil, err
+func (m *Model) ToDatabath() (*databath.Model, error) {
+	dbm := &databath.Model{}
+
+	dbm.Collections = map[string]*databath.Collection{}
+	for _, rawCollection := range m.Collections {
+		collection, err := rawCollection.ToDatabath()
+		if err != nil {
+			return nil, err
+		}
+		collection.Model = dbm
+		dbm.Collections[rawCollection.Name] = collection
 	}
 
-	dynamicFunctions := model.DynamicFunctions
+	// Should be in model.init or something
 
-	customQueries := make(map[string]*CustomQuery)
-	for queryName, rawQuery := range model.CustomQueries {
-		//log.Printf("Custom Query: %s", queryName)
-		cq := CustomQuery{
-			Query:     rawQuery.Query,
-			InFields:  make([]*Field, len(rawQuery.InFields), len(rawQuery.InFields)),
-			OutFields: make(map[string]*Field),
-			Type:      rawQuery.Type,
-		}
-		for i, rawField := range rawQuery.InFields {
-			field, err := FieldFromDef(rawField)
-			if err != nil {
-				return nil, (fmt.Errorf("Error parsing Raw Query %s.[in][%d] - %s", queryName, i, err.Error()))
+	for _, collection := range dbm.Collections {
+		for path, field := range collection.Fields {
+			field.Collection = collection
+			field.Path = path
+
+			refField, isRefField := field.FieldType.(*types.FieldRef)
+			if !isRefField {
+				continue
 			}
-			cq.InFields[i] = field
-		}
-		for i, rawField := range rawQuery.OutFields {
-			field, err := FieldFromDef(rawField)
-			if err != nil {
-				return nil, (fmt.Errorf("Error parsing Raw Query %s.[out][%d] - %s", queryName, i, err.Error()))
+			_, ok := dbm.Collections[refField.Collection]
+			if !ok {
+				return nil, fmt.Errorf("ref field %s.%s references collection %s, which doesn't exist", collection.TableName, path, refField.Collection)
 			}
-			cq.OutFields[i] = field
+			//fmt.Printf("Foreign Key %s.%s -> %s\n", collection.TableName, field.Path, refField.Collection)
+			dbm.Collections[refField.Collection].ForeignKeys = append(dbm.Collections[refField.Collection].ForeignKeys, field)
 		}
-		customQueries[queryName] = &cq
+
 	}
 
+	return dbm, nil
+}
+
+/*
 	collections := make(map[string]*Collection)
 
 	for collectionName, rawCollection := range model.Collections {
-		//log.Printf("Read Collection %s\n", collectionName)
-		fields := make(map[string]*Field)
-
-		_, ok := rawCollection.Fields["id"]
-		if !ok {
-			return nil, (fmt.Errorf("Error parsing collection %s, no id field", collectionName))
-		}
-
-		for fieldName, rawField := range rawCollection.Fields {
-
-			field, err := FieldFromDef(rawField)
-
-			if err != nil {
-				return nil, (fmt.Errorf("Error parsing %s.%s - %s", collectionName, fieldName, err.Error()))
-			}
-			field.Path = fieldName
-			fields[fieldName] = field
-		}
 
 		customFields := make(map[string]FieldSetFieldDef)
 
@@ -157,7 +129,6 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 			}
 
 			for name, rawSet := range rawCollection.FieldSets {
-				//log.Printf("Evaluate Fieldset: %s", name)
 				rawSet = append(rawSet, "id")
 
 				fieldSetDefs := make([]FieldSetFieldDef, len(rawSet), len(rawSet))
@@ -269,11 +240,36 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 		collections[collectionName] = &collection
 	}
 
+	dynamicFunctions := model.DynamicFunctions
+
+	customQueries := make(map[string]*CustomQuery)
+	for queryName, rawQuery := range model.CustomQueries {
+		cq := CustomQuery{
+			Query:     rawQuery.Query,
+			InFields:  make([]*Field, len(rawQuery.InFields), len(rawQuery.InFields)),
+			OutFields: make(map[string]*Field),
+			Type:      rawQuery.Type,
+		}
+		for i, rawField := range rawQuery.InFields {
+			field, err := FieldFromDef(rawField)
+			if err != nil {
+				return nil, (fmt.Errorf("Error parsing Raw Query %s.[in][%d] - %s", queryName, i, err.Error()))
+			}
+			cq.InFields[i] = field
+		}
+		for i, rawField := range rawQuery.OutFields {
+			field, err := FieldFromDef(rawField)
+			if err != nil {
+				return nil, (fmt.Errorf("Error parsing Raw Query %s.[out][%d] - %s", queryName, i, err.Error()))
+			}
+			cq.OutFields[i] = field
+		}
+		customQueries[queryName] = &cq
+	}
 	for _, h := range model.Hooks {
 
 		if h.Raw != nil {
 			rawQuery := h.Raw
-			//log.Println("Custom Query in Hook")
 			cq := CustomQuery{
 				Query:     rawQuery.Query,
 				InFields:  make([]*Field, len(rawQuery.InFields), len(rawQuery.InFields)),
@@ -288,7 +284,6 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 				}
 				cq.InFields[i] = field
 			}
-			//log.Println("DONE")
 			h.CustomAction = &cq
 		}
 
@@ -306,73 +301,8 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 		DynamicFunctions: dynamicFunctions,
 	}
 
-	for _, collection := range collections {
-		collection.Model = returnModel
-		for path, field := range collection.Fields {
-			field.Collection = collection
-			field.Path = path
 
-			refField, isRefField := field.Impl.(*types.FieldRef)
-			if !isRefField {
-				continue
-			}
-			_, ok := collections[refField.Collection]
-			if !ok {
-				return nil, UserErrorF("ref field %s.%s references collection %s, which doesn't exist", collection.TableName, path, refField.Collection)
-			}
-			collections[refField.Collection].ForeignKeys = append(collections[refField.Collection].ForeignKeys, field)
-		}
-
-		// Check all fieldsets...
-
-	}
-
-	log.Println("=== End Model Init ===")
 	return returnModel, err
 }
 
-func ReadModelFromFileForSync(filename string) (*Model, error) {
-
-	modelFile, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	m, err := ReadModelFromReader(modelFile, false)
-	modelFile.Close()
-	return m, err
-}
-func ReadModelFromFile(filename string) (*Model, error) {
-	modelFile, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	m, err := ReadModelFromReader(modelFile, true)
-	modelFile.Close()
-	return m, err
-}
-
-func getFieldParamString(rawField map[string]interface{}, paramName string) (*string, error) {
-	val, ok := rawField[paramName]
-	if !ok {
-		return nil, nil
-	}
-	str, ok := val.(string)
-	if !ok {
-		return nil, (fmt.Errorf("param %s value must be a string", paramName))
-	}
-	return &str, nil
-}
-
-func getFieldParamInt(rawField map[string]interface{}, paramName string) (*int64, error) {
-	val, ok := rawField[paramName]
-	if !ok {
-		return nil, nil
-	}
-	intval, ok := val.(int64)
-	if !ok {
-		return nil, (fmt.Errorf("param %s value must be an integer", paramName))
-	}
-	return &intval, nil
-}
+}*/

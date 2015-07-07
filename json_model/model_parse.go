@@ -309,6 +309,9 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 }
 
 func ReadModelFromFileForSync(filename string) (*Model, error) {
+	if strings.HasSuffix(filename, ".xml") {
+		return ReadXMLModelFromFileForSync(filename)
+	}
 
 	modelFile, err := os.Open(filename)
 	if err != nil {
@@ -320,6 +323,10 @@ func ReadModelFromFileForSync(filename string) (*Model, error) {
 	return m, err
 }
 func ReadModelFromFile(filename string) (*Model, error) {
+	if strings.HasSuffix(filename, ".xml") {
+		return ReadXMLModelFromFile(filename)
+	}
+
 	modelFile, err := os.Open(filename)
 	if err != nil {
 		return nil, err

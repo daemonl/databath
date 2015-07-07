@@ -32,7 +32,7 @@ func (c *Column) Sync() error {
 		// Table matches, no issues.
 		return nil
 	}
-	if colStr == "TIMESTAMP NOT NULL" && 
+	if colStr == "TIMESTAMP NOT NULL" &&
 		modelStr == "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" {
 		return nil
 	}
@@ -66,7 +66,7 @@ func (c *Column) doRefField() error {
 	if c.Field == nil {
 		return nil
 	}
-	refField, ok := c.Field.Impl.(RefField)
+	refField, ok := c.Field.FieldType.(RefField)
 	if !ok {
 		return nil
 	}

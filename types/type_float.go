@@ -13,8 +13,6 @@ func (f *FieldFloat) GetMysqlDef() string { return "FLOAT NULL" }
 
 func (f *FieldFloat) IsSearchable() bool { return false }
 
-func (f *FieldFloat) Init(raw map[string]interface{}) error { return nil }
-
 func (f *FieldFloat) FromDb(stored interface{}) (interface{}, error) {
 	// float64 -> float64
 

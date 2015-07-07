@@ -15,8 +15,6 @@ func (f *FieldDateTime) GetMysqlDef() string { return "INT(11) NULL" }
 
 func (f *FieldDateTime) IsSearchable() bool { return false }
 
-func (f *FieldDateTime) Init(raw map[string]interface{}) error { return nil }
-
 func (f *FieldDateTime) FromDb(stored interface{}) (interface{}, error) {
 	// Int64 -> Int64
 	storedInt, ok := stored.(*int64)

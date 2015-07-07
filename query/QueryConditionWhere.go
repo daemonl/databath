@@ -1,4 +1,4 @@
-package databath
+package query
 
 import (
 	"fmt"
@@ -57,7 +57,7 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 			length := s.Len()
 			escapedSlice := make([]string, length, length)
 			for i := 0; i < length; i++ {
-				dbVal, err := field.field.ToDb(s.Index(i).Interface(), q.context)
+				dbVal, err := field.field.ToDb(s.Index(i).Interface())
 				if err != nil {
 					return
 				}
@@ -74,7 +74,7 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 		}
 
 	} else if qc.Cmp == "=" || qc.Cmp == "!=" || qc.Cmp == "<=" || qc.Cmp == ">=" || qc.Cmp == "<" || qc.Cmp == ">" {
-		dbVal, err := field.field.ToDb(qc.Val, q.context)
+		dbVal, err := field.field.ToDb(qc.Val)
 		if err != nil {
 			returnErr = UserErrorF("%T.ToDb Error: %s", field.field, err.Error())
 			return
@@ -83,7 +83,7 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 		queryString = fmt.Sprintf("%s %s ?", queryUsingName, qc.Cmp)
 		return //GOOD
 	} else if qc.Cmp == "LIKE" {
-		dbVal, err := field.field.ToDb(qc.Val, q.context)
+		dbVal, err := field.field.ToDb(qc.Val)
 		if err != nil {
 			returnErr = err
 			return //BAD
@@ -93,7 +93,7 @@ func (qc *QueryConditionWhere) GetConditionString(q *Query) (queryString string,
 		queryString = fmt.Sprintf("%s LIKE ?", queryUsingName)
 		return //GOOD
 	} else if qc.Cmp == "INJSON" {
-		dbVal, err := field.field.ToDb(qc.Val, q.context)
+		dbVal, err := field.field.ToDb(qc.Val)
 		blobjectPairing := strings.Split(dbVal, ":")
 		if err != nil {
 			returnErr = err

@@ -11,8 +11,6 @@ func (f *FieldKeyVal) GetMysqlDef() string { return "TEXT NULL" }
 
 func (f *FieldKeyVal) IsSearchable() bool { return true }
 
-func (f *FieldKeyVal) Init(raw map[string]interface{}) error { return nil }
-
 func (f *FieldKeyVal) FromDb(stored interface{}) (interface{}, error) {
 	// String -> String
 	storedString, ok := stored.(*string)

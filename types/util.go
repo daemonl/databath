@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"reflect"
+	"regexp"
 	"strconv"
 )
 
@@ -17,6 +18,22 @@ func EscapeString(input string) string {
 }
 func UnescapeString(input string) string {
 	return input
+}
+
+var re_Numeric *regexp.Regexp = regexp.MustCompile(`^[0-9]+$`)
+
+func InferTypeFromString(in string) (interface{}, error) {
+	if in == "true" {
+		return true, nil
+	}
+	if in == "false" {
+		return false, nil
+	}
+	if re_Numeric.MatchString(in) {
+		return strconv.ParseInt(in, 10, 64)
+	}
+	return in, nil
+
 }
 
 type ModelDefinitionError struct {

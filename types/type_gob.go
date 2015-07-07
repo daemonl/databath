@@ -9,8 +9,6 @@ func (f *FieldGob) GetMysqlDef() string { return "BLOB NULL" }
 
 func (f *FieldGob) IsSearchable() bool { return true }
 
-func (f *FieldGob) Init(raw map[string]interface{}) error { return nil }
-
 func (f *FieldGob) FromDb(stored interface{}) (interface{}, error) {
 	// String -> String
 	storedString, ok := stored.(*[]byte)

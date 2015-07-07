@@ -8,8 +8,6 @@ func (f *FieldDate) GetMysqlDef() string { return "DATE NULL" }
 
 func (f *FieldDate) IsSearchable() bool { return false }
 
-func (f *FieldDate) Init(raw map[string]interface{}) error { return nil }
-
 func (f *FieldDate) FromDb(stored interface{}) (interface{}, error) {
 	//
 

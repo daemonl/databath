@@ -1,4 +1,4 @@
-package databath
+package model
 
 import (
 	"errors"
@@ -35,20 +35,7 @@ func getFieldSetFieldDef(name string, raw interface{}) (FieldSetFieldDef, error)
 		if !ok {
 			return nil, fmt.Errorf("Field %s had non string 'type' key", name)
 		}
-		var fsfd FieldSetFieldDef
-		switch fdType {
-		case "totalduration":
-			fsfdv := FieldSetFieldDefTotalDuration{}
-			fsfd = &fsfdv
-		case "aggregate":
-			fsfdv := FieldSetFieldDefAggregate{}
-			fsfd = &fsfdv
-		case "raw":
-			fsfdv := FieldSetFieldDefRaw{}
-			fsfd = &fsfdv
-		default:
-			return nil, errors.New("Fieldset type " + fdType + " couldn't be resolved")
-		}
+		fsfd := &FieldSetFieldDefRaw{}
 
 		mapVals["path"] = name
 

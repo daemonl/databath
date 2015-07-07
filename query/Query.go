@@ -1,4 +1,4 @@
-package databath
+package query
 
 import (
 	"database/sql"
@@ -202,7 +202,7 @@ func (q *Query) BuildUpdate(changeset map[string]interface{}) (string, []interfa
 		if value == nil {
 			dbVal = nil
 		} else {
-			dbVal, err = field.field.ToDb(value, q.context)
+			dbVal, err = field.field.ToDb(value)
 			if err != nil {
 				return "", allParameters, UserErrorF("Error converting %s to database value: %s", path, err.Error())
 			}
@@ -261,7 +261,7 @@ func (q *Query) BuildInsert(valueMap map[string]interface{}) (string, []interfac
 			q.Dump()
 			return "", queryParameters, UserErrorF("Attempt to update field not in fieldset: '%s'", path)
 		}
-		dbValue, err := field.field.ToDb(value, q.context)
+		dbValue, err := field.field.ToDb(value)
 		if err != nil {
 			return "", queryParameters, UserErrorF("Error converting %s to database value: %s", path, err.Error())
 		}
@@ -391,7 +391,7 @@ func (q *Query) ConvertResultRow(rs *sql.Rows) (map[string]interface{}, error) {
 			}
 			pathMap[path] = from
 
-			enumField, isEnumField := mappedField.field.Impl.(*types.FieldEnum)
+			enumField, isEnumField := mappedField.field.FieldType.(*types.FieldEnum)
 			if isEnumField {
 				if str, ok := from.(string); ok {
 					pathMap[path+"_STRING"] = enumField.Choices[str]
@@ -457,7 +457,7 @@ func (q *Query) leftJoin(baseTable *MappedTable, prefixPath []string, tableField
 		return nil, UserErrorF("Field %s does not exist in %s", tableField, baseTable.collection.TableName)
 	}
 	tableIncludePath := strings.Join(prefixPath, ".") + "." + tableField
-	refField := fieldDef.Impl.(*types.FieldRef)
+	refField := fieldDef.FieldType.(*types.FieldRef)
 
 	existingDef, ok := q.map_table[tableIncludePath]
 	if ok {

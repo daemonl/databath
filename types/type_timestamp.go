@@ -10,8 +10,8 @@ import (
 )
 
 type FieldTimestamp struct {
-	OnCreate bool
-	OnUpdate bool
+	OnCreate bool `xml:"on_create"`
+	OnUpdate bool `xml:"on_update"`
 }
 
 func (f *FieldTimestamp) GetMysqlDef() string {
@@ -36,19 +36,6 @@ func (f *FieldTimestamp) GetMysqlDef() string {
 }
 
 func (f *FieldTimestamp) IsSearchable() bool { return false }
-
-func (f *FieldTimestamp) Init(raw map[string]interface{}) error {
-
-	_, t := raw["on_create"]
-	if t {
-		f.OnCreate = true
-	}
-	_, t = raw["on_update"]
-	if t {
-		f.OnUpdate = true
-	}
-	return nil
-}
 
 func (f *FieldTimestamp) FromDb(stored interface{}) (interface{}, error) {
 	// Int64 -> Int64

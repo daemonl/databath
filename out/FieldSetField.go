@@ -1,4 +1,4 @@
-package databath
+package model
 
 import ()
 
