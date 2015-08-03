@@ -251,30 +251,16 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 
 	for _, h := range model.Hooks {
 
-		if h.Raw != nil {
-			rawQuery := h.Raw
-			cq := CustomQuery{
-				Query:     rawQuery.Query,
-				InFields:  make([]*Field, len(rawQuery.InFields), len(rawQuery.InFields)),
-				OutFields: make(map[string]*Field),
-				Type:      rawQuery.Type,
-			}
-			for i, rawField := range rawQuery.InFields {
-				field, err := FieldFromDef(rawField)
-				if err != nil {
-					log.Println(err)
-					return nil, (fmt.Errorf("Error parsing hook ", err.Error()))
-				}
-				cq.InFields[i] = field
-			}
-			h.CustomAction = &cq
-		}
+		/*
+			if h.Raw != nil {
+				rawQuery := h.Raw
+			}*/
 
 		collection, ok := collections[h.Collection]
 		if !ok {
 			return nil, UserErrorF("Hook on non existing collection %s", h.Collection)
 		}
-		collection.Hooks = append(collection.Hooks, h)
+		collection.Hooks = append(collection.Hooks, &h)
 
 	}
 

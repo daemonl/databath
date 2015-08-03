@@ -51,13 +51,3 @@ func ReadQueryFromReader(reader io.ReadCloser) (*QueryConditions, error) {
 	return rawQuery.TranslateToQuery()
 
 }
-
-/*
-"collection": "project",
-"fieldset": "table",
-"limit": 20,
-"offset": 0,
-"sort": ["customer.name"],
-"where": [{"field": "customer.id", "cmp": "=", "val": "33"}, {"field": "customer.id", "cmp": "IN", "val": [1,2,3]}],
-"search": {"name": "light", "customer.name": "jim"}
-*/
