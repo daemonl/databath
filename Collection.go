@@ -15,7 +15,7 @@ type Collection struct {
 	CustomFields   map[string]FieldSetFieldDef
 	Masks          map[uint64]*Mask
 	ForeignKeys    []*Field
-	Hooks          []Hook
+	Hooks          []IHook
 	TableName      string
 	SearchPrefixes map[string]*SearchPrefix
 	ViewQuery      *string
@@ -25,6 +25,10 @@ type SearchPrefix struct {
 	Prefix    string
 	Field     Field
 	FieldName string
+}
+
+func (c *Collection) AddHook(hook IHook) {
+	c.Hooks = append(c.Hooks, hook)
 }
 
 func (c *Collection) GetFieldSet(fieldSetNamePointer *string) ([]FieldSetFieldDef, error) {
