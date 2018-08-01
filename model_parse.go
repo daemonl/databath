@@ -47,6 +47,9 @@ func ReadModelFromReader(modelReader io.ReadCloser, doFieldSets bool) (*Model, e
 	decoder := json.NewDecoder(modelReader)
 	err := decoder.Decode(&model)
 	if err != nil {
+		if jErr, ok := err.(*json.UnmarshalTypeError); ok {
+			fmt.Println(jErr.Offset)
+		}
 		return nil, err
 	}
 
